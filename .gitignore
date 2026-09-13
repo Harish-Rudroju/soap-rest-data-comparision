@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Sample/test data - not part of the app
+SOAP_sample_Customers.csv
+REST_Sample_Customers.csv
+*.numbers

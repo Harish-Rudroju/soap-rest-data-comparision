@@ -1,0 +1,219 @@
+/* Cinematic "Start Engine" animation — fully isolated from style.css.
+   Reads the app's existing --accent/--surface tokens (defined in style.css,
+   loaded before this file) so it still matches the current theme/dark-light
+   mode, but every rule here is scoped under .engine-stage so nothing here
+   can leak into or collide with the rest of the site. */
+
+.engine-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  margin: 20px 0;
+  padding: 22px 16px 26px;
+  border-radius: var(--radius-lg, 18px);
+  background: linear-gradient(180deg, #1a1e24 0%, #0e1013 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.5);
+}
+
+.engine-scene {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  display: block;
+}
+
+/* ---------- Mechanic ---------- */
+
+/* Idle breathing -- paused during the pull so it doesn't fight with the
+   deliberate recoil animation on the parent group. */
+.mechanic-torso {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: mechanic-breathe 3.2s ease-in-out infinite;
+}
+.engine-stage.phase-pull .mechanic-torso {
+  animation-play-state: paused;
+}
+@keyframes mechanic-breathe {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.025); }
+}
+
+/* Leans back for the yank, then recoils forward and settles upright. */
+.mechanic-bend {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: rotate(0deg);
+}
+.engine-stage.phase-pull .mechanic-bend {
+  animation: pull-recoil 0.9s ease-out forwards;
+}
+@keyframes pull-recoil {
+  0% { transform: rotate(0deg); }
+  30% { transform: rotate(-9deg); }
+  55% { transform: rotate(7deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* Arm rotates around the shoulder pivot (outer <g> holds the static SVG
+   translate attribute; this inner <g> only ever receives a CSS `rotate`,
+   which avoids the classic bug where a CSS `transform` rule silently wipes
+   out an element's SVG `transform="translate(...)"` attribute. Idle: arm
+   already holding the rope, ready to pull -- no bend/reach-down business,
+   just the pull itself. */
+.mechanic-arm {
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+  transform: rotate(-20deg);
+}
+.engine-stage.phase-pull .mechanic-arm {
+  animation: arm-yank 0.9s ease-out forwards;
+}
+.engine-stage.phase-start .mechanic-arm,
+.engine-stage.phase-run .mechanic-arm {
+  transform: rotate(-20deg);
+}
+@keyframes arm-yank {
+  0% { transform: rotate(-20deg); }
+  30% { transform: rotate(-28deg); }
+  55% { transform: rotate(-8deg); }
+  100% { transform: rotate(-20deg); }
+}
+
+/* ---------- Spell caption ---------- */
+
+.spell-text {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+.engine-stage.phase-pull .spell-text {
+  animation: spell-pop 1.3s ease-out forwards;
+}
+@keyframes spell-pop {
+  0% { opacity: 0; transform: scale(0.35); }
+  20% { opacity: 1; transform: scale(1.2); }
+  35% { transform: scale(1); }
+  75% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+
+/* ---------- Pull rope ---------- */
+
+/* A simple straight bar attached to the fist the whole time -- fixed
+   length, it just rotates together with the arm (no stretching). */
+.rope-line {
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+}
+
+/* ---------- Engine body ---------- */
+
+.engine-body {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+.engine-stage.phase-start .engine-body {
+  animation: engine-shake 0.7s ease-in-out;
+}
+.engine-stage.phase-run .engine-body {
+  animation: engine-idle-vibrate 0.16s ease-in-out infinite;
+}
+@keyframes engine-shake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-2px, 1px) rotate(-0.6deg); }
+  40% { transform: translate(2px, -1px) rotate(0.6deg); }
+  60% { transform: translate(-2px, 0) rotate(-0.4deg); }
+  80% { transform: translate(2px, 1px) rotate(0.4deg); }
+}
+@keyframes engine-idle-vibrate {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(0.6px, -0.6px); }
+}
+
+.flywheel {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+.engine-stage.phase-run .flywheel {
+  animation: flywheel-spin 0.7s linear infinite;
+}
+@keyframes flywheel-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.engine-glow {
+  transition: opacity 0.4s ease-out;
+}
+.engine-stage.phase-start .engine-glow,
+.engine-stage.phase-run .engine-glow {
+  opacity: 0.55;
+}
+
+/* ---------- Exhaust smoke ---------- */
+
+.smoke-puff {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  fill: #9aa3ac;
+  opacity: 0;
+}
+.engine-stage.phase-run .smoke-puff {
+  animation: smoke-rise 2.4s ease-out infinite;
+}
+.engine-stage.phase-run .sp1 { animation-delay: 0s; }
+.engine-stage.phase-run .sp2 { animation-delay: 0.6s; }
+.engine-stage.phase-run .sp3 { animation-delay: 1.2s; }
+.engine-stage.phase-run .sp4 { animation-delay: 1.8s; }
+
+@keyframes smoke-rise {
+  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+  15% { opacity: 0.55; }
+  100% { transform: translate(14px, -60px) scale(1.8); opacity: 0; }
+}
+
+/* ---------- Start button ---------- */
+
+.engine-start-btn {
+  min-width: 220px;
+  padding: 14px 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border, #2b3f47);
+  background: var(--surface-2, #1c2e36);
+  color: var(--text, #f2ede4);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.2s, border-color 0.2s, color 0.2s;
+}
+.engine-start-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--accent, #ef6a52);
+  color: var(--accent, #ef6a52);
+}
+.engine-start-btn:disabled {
+  cursor: default;
+  opacity: 0.9;
+}
+.engine-start-btn.is-igniting {
+  background: linear-gradient(135deg, var(--accent, #ef6a52), var(--accent-2, #a5695a));
+  border-color: transparent;
+  color: var(--accent-contrast, #fff);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent, #ef6a52) 45%, transparent);
+}
+.engine-start-btn.is-running {
+  background: linear-gradient(135deg, var(--success, #4ade80), color-mix(in srgb, var(--success, #4ade80) 70%, black));
+  border-color: transparent;
+  color: #062d13;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--success, #4ade80) 45%, transparent);
+}
+
+@media (max-width: 480px) {
+  .engine-stage { padding: 16px 10px 20px; }
+}

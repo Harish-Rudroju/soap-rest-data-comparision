@@ -1,0 +1,195 @@
+<title>Map Unmatched Fields</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
+{% include "_theme_toggle.html" %}
+
+<div class="page">
+  <div class="brand">
+    <img src="{{ url_for('static', filename='images/turing-engine-icon.png') }}" alt="Turing Engine" class="brand-logo">
+    <div class="brand-text">
+      <span class="brand-name">Turing Engine</span>
+      <span class="brand-caption">Compare &middot; Validate &middot; Migrate</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="results-header">
+      <h1>Map Unmatched Fields</h1>
+      <span class="pill">{{ object_name }}</span>
+    </div>
+    <p class="subtitle">Some fields represent the same data but were exported with different column names in SOAP vs REST — e.g. "Ship To Address" vs "Shipping Address". Pair them below so they're compared as one field instead of being skipped.</p>
+
+    <form action="/confirm-mapping" method="post" id="mapping-form">
+      <input type="hidden" name="pending_id" value="{{ pending_id }}">
+      <input type="hidden" name="mapping_json" id="mapping-json" value="{}">
+
+      <div class="section-heading">Unmatched Fields</div>
+      <div id="unmatched-success" class="success" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Every column lines up on its own &mdash; no mapping needed.</span>
+      </div>
+      <div class="field-map-header" id="unmatched-header">
+        <div>Source Field (SOAP)</div>
+        <div>Match Field (REST)</div>
+      </div>
+      <div id="unmatched-container"></div>
+
+      <button type="button" class="advanced-toggle section-heading" id="advanced-toggle-mapped">
+        <svg class="advanced-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        <span id="mapped-toggle-label">Mapped Fields (0)</span>
+      </button>
+      <div class="advanced-fields" id="advanced-fields-mapped">
+        <div>
+          <div class="field-map-header">
+            <div>Source Field (SOAP)</div>
+            <div>Match Field (REST)</div>
+          </div>
+          <div id="auto-matched-container"></div>
+          <div id="mapped-container"></div>
+        </div>
+      </div>
+
+      <div class="options-actions secondary-row centered">
+        <button type="submit" class="btn-secondary" formaction="/back-to-upload" formnovalidate>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          Back
+        </button>
+        <button type="submit">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          Next
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  var ONLY_IN_SOAP = {{ only_in_soap | tojson }};
+  var ONLY_IN_REST = {{ only_in_rest | tojson }};
+  var AUTO_MATCHED_FIELDS = {{ auto_matched_fields | tojson }};
+  var INITIAL_MAPPING = {{ mapping | tojson }};
+
+  var unmatchedContainer = document.getElementById('unmatched-container');
+  var autoMatchedContainer = document.getElementById('auto-matched-container');
+  var mappedContainer = document.getElementById('mapped-container');
+  var unmatchedSuccess = document.getElementById('unmatched-success');
+  var unmatchedHeader = document.getElementById('unmatched-header');
+  var mappedToggleLabel = document.getElementById('mapped-toggle-label');
+  var hiddenInput = document.getElementById('mapping-json');
+
+  var rows = [];
+
+  function claimedValuesExcluding(select) {
+    return rows
+      .filter(function (r) { return r.select !== select; })
+      .map(function (r) { return r.select.value; })
+      .filter(Boolean);
+  }
+
+  function refreshDropdowns() {
+    rows.forEach(function (r) {
+      var exclude = claimedValuesExcluding(r.select);
+      var current = r.select.value;
+      var html = '<option value="">No match — leave excluded</option>';
+      ONLY_IN_REST.forEach(function (field) {
+        if (exclude.indexOf(field) === -1) {
+          var selected = (field === current) ? ' selected' : '';
+          html += '<option value="' + field + '"' + selected + '>' + field + '</option>';
+        }
+      });
+      r.select.innerHTML = html;
+      r.select.value = current;
+    });
+  }
+
+  function updateSections() {
+    var anyUnmatched = false;
+    var mappedCount = AUTO_MATCHED_FIELDS.length;
+    rows.forEach(function (r) {
+      var target = r.select.value ? mappedContainer : unmatchedContainer;
+      if (r.wrapper.parentNode !== target) {
+        target.appendChild(r.wrapper);
+      }
+      if (r.select.value) {
+        mappedCount += 1;
+      } else {
+        anyUnmatched = true;
+      }
+    });
+    unmatchedSuccess.style.display = anyUnmatched ? 'none' : 'flex';
+    unmatchedHeader.style.display = anyUnmatched ? '' : 'none';
+    mappedToggleLabel.textContent = 'Mapped Fields (' + mappedCount + ')';
+  }
+
+  function buildAutoMatchedRow(field) {
+    var wrapper = document.createElement('div');
+    wrapper.className = 'field-map-row field-map-row-auto';
+
+    var label = document.createElement('div');
+    label.textContent = field;
+    wrapper.appendChild(label);
+
+    var matchCell = document.createElement('div');
+    matchCell.className = 'auto-matched-cell';
+
+    var matchName = document.createElement('span');
+    matchName.textContent = field;
+    matchCell.appendChild(matchName);
+
+    var ribbon = document.createElement('span');
+    ribbon.className = 'pill-mini';
+    ribbon.textContent = 'Auto-Matched';
+    matchCell.appendChild(ribbon);
+
+    wrapper.appendChild(matchCell);
+
+    autoMatchedContainer.appendChild(wrapper);
+  }
+
+  function onRowChange() {
+    refreshDropdowns();
+    updateSections();
+  }
+
+  function buildRow(soapField) {
+    var wrapper = document.createElement('div');
+    wrapper.className = 'field-map-row';
+
+    var label = document.createElement('div');
+    label.textContent = soapField;
+    wrapper.appendChild(label);
+
+    var select = document.createElement('select');
+    select.dataset.soapField = soapField;
+    select.addEventListener('change', onRowChange);
+    wrapper.appendChild(select);
+
+    unmatchedContainer.appendChild(wrapper);
+    rows.push({ wrapper: wrapper, select: select, soapField: soapField });
+  }
+
+  AUTO_MATCHED_FIELDS.forEach(function (field) { buildAutoMatchedRow(field); });
+  ONLY_IN_SOAP.forEach(function (field) { buildRow(field); });
+  refreshDropdowns();
+  rows.forEach(function (r) {
+    if (INITIAL_MAPPING[r.soapField]) {
+      r.select.value = INITIAL_MAPPING[r.soapField];
+    }
+  });
+  refreshDropdowns();
+  updateSections();
+
+  document.getElementById('advanced-toggle-mapped').addEventListener('click', function () {
+    this.classList.toggle('open');
+    document.getElementById('advanced-fields-mapped').classList.toggle('open');
+  });
+
+  document.getElementById('mapping-form').addEventListener('submit', function () {
+    var mapping = {};
+    rows.forEach(function (r) {
+      if (r.select.value) {
+        mapping[r.soapField] = r.select.value;
+      }
+    });
+    hiddenInput.value = JSON.stringify(mapping);
+  });
+</script>

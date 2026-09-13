@@ -1,0 +1,38 @@
+<title>Choose Next Step</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
+{% include "_theme_toggle.html" %}
+
+<div class="page">
+  <div class="brand">
+    <img src="{{ url_for('static', filename='images/turing-engine-icon.png') }}" alt="Turing Engine" class="brand-logo">
+    <div class="brand-text">
+      <span class="brand-name">Turing Engine</span>
+      <span class="brand-caption">Compare &middot; Validate &middot; Migrate</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="results-header">
+      <h1>Ready to Run</h1>
+      <span class="pill">{{ object_name }}</span>
+    </div>
+    <p class="subtitle">Your data is fed and ready — the engine is primed to turn it into migration answers.</p>
+
+    <form action="/run" method="post" id="run-form">
+      <input type="hidden" name="pending_id" value="{{ pending_id }}">
+
+      {% include "_start_button_cinematic.html" %}
+
+      <div class="options-actions secondary-row centered">
+        <button type="submit" class="btn-secondary" formaction="{{ back_target }}" formnovalidate>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          Back
+        </button>
+        <a class="btn" href="/">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
+          Start Over
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
