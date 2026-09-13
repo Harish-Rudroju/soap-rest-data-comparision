@@ -1,0 +1,122 @@
+<title>Select Matching Key</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
+{% include "_theme_toggle.html" %}
+
+<div class="page">
+  <div class="brand">
+    <img src="{{ url_for('static', filename='images/turing-engine-icon.png') }}" alt="Turing Engine" class="brand-logo">
+    <div class="brand-text">
+      <span class="brand-name">Turing Engine</span>
+      <span class="brand-caption">Compare &middot; Validate &middot; Migrate</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="results-header">
+      <h1>Select Matching Key</h1>
+      <span class="pill">{{ object_name }}</span>
+    </div>
+    <p class="subtitle">Choose one or more fields that, together, uniquely identify a record — SOAP and REST rows will be matched by these fields. If an "Internal Id" column was found in both sheets, it's already pre-selected below; change it if you'd rather match on something else.</p>
+
+    {% if error %}
+      <div class="error">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>{{ error }}</span>
+      </div>
+    {% endif %}
+
+    <form action="/confirm-key" method="post">
+      <input type="hidden" name="pending_id" value="{{ pending_id }}">
+
+      <div>
+        <div class="field-label">Key Field(s)</div>
+        <div id="key-fields-container"></div>
+      </div>
+
+      <button type="button" class="btn-secondary" id="add-key-field-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        Add more fields
+      </button>
+
+      <div class="options-actions secondary-row centered">
+        <button type="submit" class="btn-secondary" formaction="/back-to-mapping" formnovalidate>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          Back
+        </button>
+        <button type="submit">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          Next
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  var AVAILABLE_COLUMNS = {{ common_columns | tojson }};
+  var container = document.getElementById('key-fields-container');
+  var addBtn = document.getElementById('add-key-field-btn');
+  var rows = [];
+
+  function chosenValuesExcluding(select) {
+    return rows
+      .filter(function (r) { return r.select !== select; })
+      .map(function (r) { return r.select.value; })
+      .filter(Boolean);
+  }
+
+  function refreshOptions() {
+    rows.forEach(function (r) {
+      var exclude = chosenValuesExcluding(r.select);
+      var current = r.select.value;
+      var html = '<option value="">Select a field…</option>';
+      AVAILABLE_COLUMNS.forEach(function (col) {
+        if (exclude.indexOf(col) === -1) {
+          var selected = (col === current) ? ' selected' : '';
+          html += '<option value="' + col + '"' + selected + '>' + col + '</option>';
+        }
+      });
+      r.select.innerHTML = html;
+    });
+    addBtn.style.display = (rows.length >= AVAILABLE_COLUMNS.length) ? 'none' : '';
+  }
+
+  function addRow() {
+    var wrapper = document.createElement('div');
+    wrapper.className = 'key-field-row';
+
+    var select = document.createElement('select');
+    select.name = 'key_columns';
+    select.addEventListener('change', refreshOptions);
+
+    wrapper.appendChild(select);
+
+    if (rows.length > 0) {
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'key-field-remove';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.addEventListener('click', function () {
+        container.removeChild(wrapper);
+        rows = rows.filter(function (r) { return r.select !== select; });
+        refreshOptions();
+      });
+      wrapper.appendChild(removeBtn);
+    }
+
+    container.appendChild(wrapper);
+    rows.push({ wrapper: wrapper, select: select });
+    refreshOptions();
+  }
+
+  addBtn.addEventListener('click', addRow);
+
+  var SELECTED_KEYS = {{ selected_keys | tojson }};
+  if (SELECTED_KEYS.length > 0) {
+    SELECTED_KEYS.forEach(function () { addRow(); });
+    rows.forEach(function (r, i) { r.select.value = SELECTED_KEYS[i]; });
+    refreshOptions();
+  } else {
+    addRow();
+  }
+</script>

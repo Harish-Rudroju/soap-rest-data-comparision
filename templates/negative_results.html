@@ -1,0 +1,97 @@
+<title>Negative Case Results</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
+{% include "_theme_toggle.html" %}
+
+<div class="page">
+  <div class="brand">
+    <img src="{{ url_for('static', filename='images/turing-engine-icon.png') }}" alt="Turing Engine" class="brand-logo">
+    <div class="brand-text">
+      <span class="brand-name">Turing Engine</span>
+      <span class="brand-caption">Compare &middot; Validate &middot; Migrate</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="results-header">
+      <h1>Negative Case Results</h1>
+      <span class="pill">{{ object_name }}</span>
+    </div>
+
+    <div class="stats">
+      <div class="stat mismatch">
+        <div class="stat-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <span class="stat-value">{{ negative_count }}</span>
+        <span class="stat-label">REST blank, SOAP has value</span>
+      </div>
+      <div class="stat neutral">
+        <div class="stat-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>
+        </div>
+        <span class="stat-value">{{ fields_affected }}</span>
+        <span class="stat-label">Fields affected</span>
+      </div>
+    </div>
+
+    {% if negative_count == 0 %}
+    <div class="warning" style="background: var(--success-bg); color: var(--success);">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      <div>No negative cases found — REST never returned blank where SOAP had a value, across every matched record and field.</div>
+    </div>
+    {% endif %}
+
+    {% if only_in_soap or only_in_rest %}
+    <div class="warning">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 2.5 17a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+      <div class="warning-body">
+        <strong>Column mismatch — excluded from scan</strong>
+        {% if only_in_soap %}<div>Only in SOAP sheet: {{ only_in_soap | join(', ') }}</div>{% endif %}
+        {% if only_in_rest %}<div>Only in REST sheet: {{ only_in_rest | join(', ') }}</div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if negative_count > 0 %}
+    <div class="section-title">Downloads</div>
+    <div style="overflow-x:auto"><table class="download-table">
+      <thead>
+        <tr>
+          <th>Report</th>
+          <th>CSV</th>
+          <th>Excel</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Negative Case Report</td>
+          <td>
+            <a class="icon-btn" href="{{ url_for('download', request_id=request_id, which='negative_csv') }}" title="Download CSV" aria-label="Download Negative Case Report as CSV">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            </a>
+          </td>
+          <td>
+            <a class="icon-btn" href="{{ url_for('download', request_id=request_id, which='negative_xlsx') }}" title="Download Excel" aria-label="Download Negative Case Report as Excel">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            </a>
+          </td>
+        </tr>
+      </tbody>
+    </table></div>
+    {% endif %}
+
+    <form action="/back-to-options" method="post">
+      <input type="hidden" name="pending_id" value="{{ pending_id }}">
+      <div class="options-actions secondary-row centered">
+        <button type="submit" class="btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          Back
+        </button>
+        <a class="btn" href="/">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
+          Run Another Comparison
+        </a>
+      </div>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,338 @@
+<title>SOAP vs REST Comparison</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
+{% include "_theme_toggle.html" %}
+
+<div class="page">
+  <div class="brand">
+    <img src="{{ url_for('static', filename='images/turing-engine-icon.png') }}" alt="Turing Engine" class="brand-logo">
+    <div class="brand-text">
+      <span class="brand-name">Turing Engine</span>
+      <span class="brand-caption">Compare &middot; Validate &middot; Migrate</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab" data-tab-target="tab-compare" id="tab-btn-compare">Field Comparison</button>
+      <button type="button" class="tab" data-tab-target="tab-negative" id="tab-btn-negative">Negative Case Testing</button>
+    </div>
+
+    <div class="tab-panel" id="tab-compare">
+      <h1>SOAP vs REST Comparison</h1>
+      <p class="subtitle">Upload the SOAP export, REST export, and (optionally) a Field Metadata sheet for one object to generate a field-by-field evidence report.</p>
+
+      {% if error and active_tab != 'negative' %}
+        <div class="error">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>{{ error }}</span>
+        </div>
+      {% endif %}
+
+      {% set cp = prefill if prefill and prefill.flow == 'compare' else None %}
+      <form action="/compare" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="existing_pending_id" value="{{ cp.existing_pending_id if cp else '' }}">
+
+        <div>
+          <div class="field-label">Object Name</div>
+          <input type="text" name="object_name" placeholder="e.g. Customer" value="{{ cp.object_name if cp else 'Customer' }}">
+        </div>
+
+        <div>
+          <div class="field-label">SOAP Export</div>
+          <label class="dropzone" data-dropzone>
+            <input type="file" name="soap_file" accept=".csv,.xlsx,.xls" {{ '' if cp else 'required' }} data-filename-target="soap-filename">
+            <div class="dropzone-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 .5 8.9"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>
+            </div>
+            <div class="dropzone-text">
+              <div class="dropzone-title">Choose or drop CSV/Excel file</div>
+              <div class="dropzone-filename {{ 'chosen' if cp and cp.soap_filename }}" id="soap-filename">{{ 'Already uploaded: ' + cp.soap_filename if cp and cp.soap_filename else 'No file selected' }}</div>
+            </div>
+          </label>
+        </div>
+
+        <div>
+          <div class="field-label">REST Export</div>
+          <label class="dropzone" data-dropzone>
+            <input type="file" name="rest_file" accept=".csv,.xlsx,.xls" {{ '' if cp else 'required' }} data-filename-target="rest-filename">
+            <div class="dropzone-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 .5 8.9"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>
+            </div>
+            <div class="dropzone-text">
+              <div class="dropzone-title">Choose or drop CSV/Excel file</div>
+              <div class="dropzone-filename {{ 'chosen' if cp and cp.rest_filename }}" id="rest-filename">{{ 'Already uploaded: ' + cp.rest_filename if cp and cp.rest_filename else 'No file selected' }}</div>
+            </div>
+          </label>
+        </div>
+
+        <label class="checkbox-row">
+          <input type="checkbox" name="full_by_default" id="full-by-default-checkbox" {{ 'checked' if (not cp) or cp.full_by_default else '' }}>
+          <div class="checkbox-text">
+            <div class="checkbox-title">Run every field as a Full comparison by default</div>
+            <div class="checkbox-desc">Applies to any field not explicitly listed in the Field Metadata sheet. N above still caps how many "Verified" rows are shown for a clean field.</div>
+          </div>
+        </label>
+
+        <button type="button" class="advanced-toggle section-heading" id="advanced-toggle-compare" aria-expanded="false">
+          <svg class="advanced-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          Advanced options
+        </button>
+        <div class="advanced-fields" id="advanced-fields-compare">
+          <div>
+            <div class="subsection-title">Managed Package Namespaces</div>
+            <p class="subsection-desc">Salesforce custom fields are prefixed with a managed-package namespace (e.g. <code>breadwinner_ns__Status__c</code>), and SOAP/REST orgs can use different namespaces for the same field. Set them here so fields line up correctly. If your sheets use Field Labels instead of API names, you can skip this.</p>
+            <div class="row">
+              <label>
+                <div class="field-label">SOAP Namespace</div>
+                <input type="text" name="soap_namespace" value="{{ cp.soap_namespace if cp else 'breadwinner_ns' }}">
+              </label>
+              <label>
+                <div class="field-label">REST Namespace</div>
+                <input type="text" name="rest_namespace" value="{{ cp.rest_namespace if cp else 'rc_breadwinner' }}">
+              </label>
+            </div>
+          </div>
+
+          <div id="default-n-field">
+            <div class="field-label">Default Evidence Count (N)</div>
+            <input type="number" name="default_n" id="default-n-input" value="{{ cp.default_n if cp else 5 }}" min="1">
+            <p class="subsection-desc">Uncheck "Run every field as a Full comparison by default" above to use this instead of scanning every record.</p>
+          </div>
+
+          <div>
+            <div class="subsection-title">Wizard Steps</div>
+            <p class="subsection-desc">By default, every step of the wizard is always shown. Uncheck a step below to skip it automatically when it isn't needed.</p>
+
+            <label class="checkbox-row">
+              <input type="checkbox" name="always_show_mapping" {{ 'checked' if (not cp) or cp.always_show_mapping else '' }}>
+              <div class="checkbox-text">
+                <div class="checkbox-title">Always show Map Unmatched Fields</div>
+                <div class="checkbox-desc">Unchecked: only shown if some fields don't already share the same name across SOAP and REST.</div>
+              </div>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" name="always_show_key" {{ 'checked' if (not cp) or cp.always_show_key else '' }}>
+              <div class="checkbox-text">
+                <div class="checkbox-title">Always show Select Matching Key</div>
+                <div class="checkbox-desc">Unchecked: only shown if an "Internal Id" column isn't found in both sheets.</div>
+              </div>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" name="always_show_drop" {{ 'checked' if (not cp) or cp.always_show_drop else '' }}>
+              <div class="checkbox-text">
+                <div class="checkbox-title">Always show Drop Fields</div>
+                <div class="checkbox-desc">If you need to exclude certain fields from the comparison, keep this checked. Otherwise, uncheck it to skip straight to Ready to Run.</div>
+              </div>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" name="always_show_field_logic" {{ 'checked' if (not cp) or cp.always_show_field_logic else '' }}>
+              <div class="checkbox-text">
+                <div class="checkbox-title">Always show Field Comparison Logic</div>
+                <div class="checkbox-desc">If any fields need Date or Picklist (order-insensitive) handling instead of a strict match, keep this checked. Otherwise, uncheck it to skip straight to Ready to Run.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="options-actions secondary-row centered">
+          <button type="submit">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            Next
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="tab-panel" id="tab-negative">
+      <h1>Negative Case Testing</h1>
+      <p class="subtitle">Exhaustively scans every matched record and field for cases where SOAP has a value but REST is blank — i.e. REST silently failing to populate a field. No sampling, no Field Metadata sheet needed — every occurrence is reported.</p>
+
+      {% if error and active_tab == 'negative' %}
+        <div class="error">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>{{ error }}</span>
+        </div>
+      {% endif %}
+
+      {% set np = prefill if prefill and prefill.flow == 'negative' else None %}
+      <form action="/negative-test" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="existing_pending_id" value="{{ np.existing_pending_id if np else '' }}">
+
+        <div>
+          <div class="field-label">Object Name</div>
+          <input type="text" name="neg_object_name" placeholder="e.g. Customer" value="{{ np.object_name if np else 'Customer' }}">
+        </div>
+
+        <div>
+          <div class="field-label">SOAP Export</div>
+          <label class="dropzone" data-dropzone>
+            <input type="file" name="neg_soap_file" accept=".csv,.xlsx,.xls" {{ '' if np else 'required' }} data-filename-target="neg-soap-filename">
+            <div class="dropzone-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 .5 8.9"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>
+            </div>
+            <div class="dropzone-text">
+              <div class="dropzone-title">Choose or drop CSV/Excel file</div>
+              <div class="dropzone-filename {{ 'chosen' if np and np.soap_filename }}" id="neg-soap-filename">{{ 'Already uploaded: ' + np.soap_filename if np and np.soap_filename else 'No file selected' }}</div>
+            </div>
+          </label>
+        </div>
+
+        <div>
+          <div class="field-label">REST Export</div>
+          <label class="dropzone" data-dropzone>
+            <input type="file" name="neg_rest_file" accept=".csv,.xlsx,.xls" {{ '' if np else 'required' }} data-filename-target="neg-rest-filename">
+            <div class="dropzone-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 .5 8.9"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>
+            </div>
+            <div class="dropzone-text">
+              <div class="dropzone-title">Choose or drop CSV/Excel file</div>
+              <div class="dropzone-filename {{ 'chosen' if np and np.rest_filename }}" id="neg-rest-filename">{{ 'Already uploaded: ' + np.rest_filename if np and np.rest_filename else 'No file selected' }}</div>
+            </div>
+          </label>
+        </div>
+
+        <button type="button" class="advanced-toggle section-heading" id="advanced-toggle-negative" aria-expanded="false">
+          <svg class="advanced-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          Advanced options
+        </button>
+        <div class="advanced-fields" id="advanced-fields-negative">
+          <div>
+            <div class="subsection-title">Managed Package Namespaces</div>
+            <p class="subsection-desc">Salesforce custom fields are prefixed with a managed-package namespace (e.g. <code>breadwinner_ns__Status__c</code>), and SOAP/REST orgs can use different namespaces for the same field. Set them here so fields line up correctly. If your sheets use Field Labels instead of API names, you can skip this.</p>
+            <div class="row">
+              <label>
+                <div class="field-label">SOAP Namespace</div>
+                <input type="text" name="neg_soap_namespace" value="{{ np.soap_namespace if np else 'breadwinner_ns' }}">
+              </label>
+              <label>
+                <div class="field-label">REST Namespace</div>
+                <input type="text" name="neg_rest_namespace" value="{{ np.rest_namespace if np else 'rc_breadwinner' }}">
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <div class="subsection-title">Wizard Steps</div>
+            <p class="subsection-desc">By default, every step of the wizard is always shown. Uncheck a step below to skip it automatically when it isn't needed.</p>
+
+            <label class="checkbox-row">
+              <input type="checkbox" name="neg_always_show_mapping" {{ 'checked' if (not np) or np.always_show_mapping else '' }}>
+              <div class="checkbox-text">
+                <div class="checkbox-title">Always show Map Unmatched Fields</div>
+                <div class="checkbox-desc">Unchecked: only shown if some fields don't already share the same name across SOAP and REST.</div>
+              </div>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" name="neg_always_show_key" {{ 'checked' if (not np) or np.always_show_key else '' }}>
+              <div class="checkbox-text">
+                <div class="checkbox-title">Always show Select Matching Key</div>
+                <div class="checkbox-desc">Unchecked: only shown if an "Internal Id" column isn't found in both sheets.</div>
+              </div>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" name="neg_always_show_drop" {{ 'checked' if (not np) or np.always_show_drop else '' }}>
+              <div class="checkbox-text">
+                <div class="checkbox-title">Always show Drop Fields</div>
+                <div class="checkbox-desc">If you need to exclude certain fields from the comparison, keep this checked. Otherwise, uncheck it to skip straight to Ready to Run.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="options-actions secondary-row centered">
+          <button type="submit">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            Next
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('[data-dropzone]').forEach(function (zone) {
+    var input = zone.querySelector('input[type="file"]');
+    var targetId = input.getAttribute('data-filename-target');
+    var label = document.getElementById(targetId);
+    var defaultText = label.textContent;
+
+    input.addEventListener('change', function () {
+      if (input.files && input.files.length > 0) {
+        label.textContent = input.files[0].name;
+        label.classList.add('chosen');
+      } else {
+        label.textContent = defaultText;
+        label.classList.remove('chosen');
+      }
+    });
+
+    ['dragenter', 'dragover'].forEach(function (evt) {
+      zone.addEventListener(evt, function (e) {
+        e.preventDefault();
+        zone.classList.add('dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (evt) {
+      zone.addEventListener(evt, function (e) {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+      });
+    });
+    zone.addEventListener('drop', function (e) {
+      if (e.dataTransfer.files.length > 0) {
+        input.files = e.dataTransfer.files;
+        input.dispatchEvent(new Event('change'));
+      }
+    });
+  });
+
+  (function () {
+    var fullCheckbox = document.getElementById('full-by-default-checkbox');
+    var nField = document.getElementById('default-n-field');
+    var nInput = document.getElementById('default-n-input');
+
+    function syncState() {
+      var isFull = fullCheckbox.checked;
+      // readonly (not disabled) so the value still submits with the form.
+      nInput.readOnly = isFull;
+      nField.classList.toggle('field-disabled', isFull);
+    }
+
+    fullCheckbox.addEventListener('change', syncState);
+    syncState();
+  })();
+
+  document.querySelectorAll('.advanced-toggle').forEach(function (toggle) {
+    var fieldsId = toggle.id.replace('advanced-toggle-', 'advanced-fields-');
+    var fields = document.getElementById(fieldsId);
+    toggle.addEventListener('click', function () {
+      var isOpen = fields.classList.toggle('open');
+      toggle.classList.toggle('open', isOpen);
+      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+  });
+
+  (function () {
+    var tabButtons = document.querySelectorAll('[data-tab-target]');
+    var panels = document.querySelectorAll('.tab-panel');
+
+    function activate(tabId) {
+      tabButtons.forEach(function (btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-tab-target') === tabId);
+      });
+      panels.forEach(function (panel) {
+        panel.classList.toggle('active', panel.id === tabId);
+      });
+    }
+
+    tabButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        activate(btn.getAttribute('data-tab-target'));
+      });
+    });
+
+    var initialTab = "{{ 'tab-' + active_tab if active_tab else 'tab-compare' }}";
+    activate(initialTab);
+  })();
+</script>

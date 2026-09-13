@@ -1,0 +1,130 @@
+<title>Drop Fields</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
+{% include "_theme_toggle.html" %}
+
+<div class="page">
+  <div class="brand">
+    <img src="{{ url_for('static', filename='images/turing-engine-icon.png') }}" alt="Turing Engine" class="brand-logo">
+    <div class="brand-text">
+      <span class="brand-name">Turing Engine</span>
+      <span class="brand-caption">Compare &middot; Validate &middot; Migrate</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="results-header">
+      <h1>Drop Fields</h1>
+      <span class="pill">{{ object_name }}</span>
+    </div>
+    <p class="subtitle">Move any field you already know won't match for expected reasons (e.g. lookup/Id fields that differ by design) into "Fields to Drop" to exclude it from every report — the field comparison, mismatch summary, and negative-case scan.</p>
+
+    <form action="/confirm-drop" method="post" id="drop-form">
+      <input type="hidden" name="pending_id" value="{{ pending_id }}">
+      <input type="hidden" name="dropped_fields_json" id="dropped-fields-json" value="[]">
+
+      <div class="dual-listbox">
+        <div class="listbox-col">
+          <div class="field-label">Available Fields</div>
+          <select id="available-select" multiple size="14"></select>
+        </div>
+        <div class="listbox-moves">
+          <button type="button" class="move-btn" id="move-all-right" title="Drop all">&raquo;</button>
+          <button type="button" class="move-btn" id="move-right" title="Drop selected">&gt;</button>
+          <button type="button" class="move-btn" id="move-left" title="Keep selected">&lt;</button>
+          <button type="button" class="move-btn" id="move-all-left" title="Keep all">&laquo;</button>
+        </div>
+        <div class="listbox-col">
+          <div class="field-label">Fields to Drop</div>
+          <select id="dropped-select" multiple size="14"></select>
+        </div>
+      </div>
+      <div class="ignore-summary" id="drop-summary"></div>
+
+      <div class="options-actions secondary-row centered">
+        <button type="submit" class="btn-secondary" formaction="/back-to-key" formnovalidate>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          Back
+        </button>
+        <button type="submit">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          Next
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  var AVAILABLE_FIELDS = {{ available_fields | tojson }};
+  var committedDropped = {{ ignored_fields | tojson }};
+
+  var availableSelect = document.getElementById('available-select');
+  var droppedSelect = document.getElementById('dropped-select');
+  var hiddenInput = document.getElementById('dropped-fields-json');
+  var summary = document.getElementById('drop-summary');
+
+  function buildOption(value) {
+    var opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = value;
+    return opt;
+  }
+
+  function populate() {
+    availableSelect.innerHTML = '';
+    droppedSelect.innerHTML = '';
+    AVAILABLE_FIELDS.forEach(function (field) {
+      if (committedDropped.indexOf(field) === -1) {
+        availableSelect.appendChild(buildOption(field));
+      } else {
+        droppedSelect.appendChild(buildOption(field));
+      }
+    });
+  }
+
+  function syncState() {
+    committedDropped = Array.prototype.map.call(droppedSelect.options, function (opt) { return opt.value; });
+    hiddenInput.value = JSON.stringify(committedDropped);
+    updateSummary();
+  }
+
+  function moveSelected(fromSelect, toSelect) {
+    Array.prototype.slice.call(fromSelect.selectedOptions).forEach(function (opt) {
+      toSelect.appendChild(opt);
+    });
+    syncState();
+  }
+
+  function moveAll(fromSelect, toSelect) {
+    while (fromSelect.options.length > 0) {
+      toSelect.appendChild(fromSelect.options[0]);
+    }
+    syncState();
+  }
+
+  function updateSummary() {
+    if (committedDropped.length === 0) {
+      summary.textContent = 'No fields dropped — every shared field will be compared.';
+    } else if (committedDropped.length === 1) {
+      summary.textContent = '1 field dropped: ' + committedDropped[0];
+    } else {
+      summary.textContent = committedDropped.length + ' fields dropped: ' + committedDropped.join(', ');
+    }
+  }
+
+  document.getElementById('move-right').addEventListener('click', function () {
+    moveSelected(availableSelect, droppedSelect);
+  });
+  document.getElementById('move-left').addEventListener('click', function () {
+    moveSelected(droppedSelect, availableSelect);
+  });
+  document.getElementById('move-all-right').addEventListener('click', function () {
+    moveAll(availableSelect, droppedSelect);
+  });
+  document.getElementById('move-all-left').addEventListener('click', function () {
+    moveAll(droppedSelect, availableSelect);
+  });
+
+  populate();
+  syncState();
+</script>

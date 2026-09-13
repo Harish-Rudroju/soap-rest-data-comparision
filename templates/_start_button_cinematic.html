@@ -1,0 +1,120 @@
+<!-- Cinematic "Start Engine" animation.
+     Fully isolated: its own stylesheet (engine-animation.css) and script
+     (engine-animation.js), loaded only on this page. To revert to the
+     plain circular button, swap this include in options.html back to
+     the classic partial's file name -- nothing else changes. -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/engine-animation.css') }}?v={{ asset_version_for('css/engine-animation.css') }}">
+
+<div class="engine-stage" id="engine-stage">
+  <svg class="engine-scene" viewBox="0 0 520 210" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <linearGradient id="metalGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#8a95a1"/>
+        <stop offset="55%" stop-color="#4b5561"/>
+        <stop offset="100%" stop-color="#262e36"/>
+      </linearGradient>
+      <linearGradient id="engineBodyGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#546170"/>
+        <stop offset="100%" stop-color="#232a31"/>
+      </linearGradient>
+      <radialGradient id="engineGlowGrad" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="var(--accent, #ef6a52)" stop-opacity="0.85"/>
+        <stop offset="100%" stop-color="var(--accent, #ef6a52)" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+
+    <ellipse cx="250" cy="188" rx="220" ry="12" fill="rgba(0,0,0,0.35)"/>
+
+    <!-- Mechanic: outer <g> is the hip pivot for the bend-forward motion
+         (transform-origin set in CSS to the bottom of this group), so
+         bending automatically carries the torso/head/arm down with it. -->
+    <g transform="translate(46,32)">
+      <rect x="18" y="106" width="15" height="48" rx="6" fill="url(#metalGrad)"/>
+      <rect x="44" y="106" width="15" height="48" rx="6" fill="url(#metalGrad)"/>
+
+      <g class="mechanic-bend">
+        <g class="mechanic-torso">
+          <path d="M6 52 Q38 32 70 52 L66 116 Q38 130 10 116 Z" fill="#3a4652"/>
+          <path d="M6 52 Q38 32 70 52 L68 66 Q38 52 8 66 Z" fill="#4c5a68"/>
+        </g>
+
+        <circle cx="38" cy="24" r="16" fill="#caa27a"/>
+        <path d="M21 18 a17 13 0 0 1 34 0 L55 14 Q38 3 21 14 Z" fill="#20262c"/>
+
+        <!-- static arm resting on hip -->
+        <rect x="2" y="62" width="13" height="40" rx="6" fill="#3a4652" transform="rotate(10 2 62)"/>
+
+        <!-- animated arm: pivots at the shoulder (outer <g> keeps the SVG
+             translate attribute; inner .mechanic-arm only ever receives a
+             CSS rotate, see engine-animation.css for why) -->
+        <g transform="translate(66,64)">
+          <g class="mechanic-arm">
+            <rect x="0" y="0" width="42" height="14" rx="7" fill="#3a4652"/>
+            <circle class="mechanic-fist" cx="46" cy="7" r="8" fill="#caa27a"/>
+            <!-- Rope: a simple straight bar attached to the fist the whole
+                 time (rotates and stretches together with the arm), the
+                 original approach before trying (and failing, at this
+                 icon scale) to make it visibly rest on the ground first. -->
+            <rect class="rope-line" x="46" y="3" width="40" height="4" rx="2" fill="#caa46a"/>
+          </g>
+        </g>
+      </g>
+    </g>
+
+    <!-- Comic-book "spell" caption, popped in during the pull. Outer <g>
+         holds the static SVG translate/rotate attribute for positioning;
+         inner .spell-text only ever receives a CSS `transform` (scale),
+         same reasoning as the arm/torso pivots above. -->
+    <g transform="translate(112,26) rotate(-6)">
+      <g class="spell-text">
+        <text x="0" y="0" text-anchor="middle" font-family="'Arial Black', Impact, sans-serif" font-style="italic" font-size="21" font-weight="900" fill="#ffe9a8" stroke="#4a2f10" stroke-width="1.4" paint-order="stroke" stroke-linejoin="round">Motorius Ignitio!</text>
+      </g>
+    </g>
+
+    <!-- Engine -->
+    <g transform="translate(326,18)">
+      <g class="engine-body">
+        <rect x="0" y="90" width="150" height="66" rx="8" fill="url(#engineBodyGrad)" stroke="#171b1f" stroke-width="2"/>
+
+        <g fill="#232a31">
+          <rect x="14" y="60" width="9" height="38" rx="2"/>
+          <rect x="29" y="60" width="9" height="38" rx="2"/>
+          <rect x="44" y="60" width="9" height="38" rx="2"/>
+          <rect x="59" y="60" width="9" height="38" rx="2"/>
+        </g>
+
+        <circle cx="10" cy="98" r="3.2" fill="#0e1013"/>
+        <circle cx="140" cy="98" r="3.2" fill="#0e1013"/>
+        <circle cx="10" cy="148" r="3.2" fill="#0e1013"/>
+        <circle cx="140" cy="148" r="3.2" fill="#0e1013"/>
+
+        <rect x="118" y="34" width="13" height="48" rx="4" fill="url(#metalGrad)"/>
+
+        <circle class="engine-glow" cx="38" cy="56" r="44" fill="url(#engineGlowGrad)" opacity="0"/>
+
+        <g transform="translate(38,56)">
+          <g class="flywheel">
+            <circle r="32" fill="url(#metalGrad)" stroke="#171b1f" stroke-width="3"/>
+            <circle r="7" fill="#171b1f"/>
+            <rect x="-3" y="-32" width="6" height="18" fill="#171b1f"/>
+            <rect x="-3" y="14" width="6" height="18" fill="#171b1f"/>
+            <rect x="-32" y="-3" width="18" height="6" fill="#171b1f"/>
+            <rect x="14" y="-3" width="18" height="6" fill="#171b1f"/>
+          </g>
+        </g>
+      </g>
+    </g>
+
+    <!-- Exhaust smoke -->
+    <g transform="translate(456,52)">
+      <circle class="smoke-puff sp1" cx="0" cy="0" r="6"/>
+      <circle class="smoke-puff sp2" cx="4" cy="2" r="7"/>
+      <circle class="smoke-puff sp3" cx="-3" cy="1" r="5"/>
+      <circle class="smoke-puff sp4" cx="2" cy="-1" r="6"/>
+    </g>
+  </svg>
+
+  <button type="submit" class="engine-start-btn" id="engine-start-btn" aria-label="{{ run_label }}">{{ run_label }}</button>
+</div>
+
+<script src="{{ url_for('static', filename='js/engine-animation.js') }}?v={{ asset_version_for('js/engine-animation.js') }}"></script>

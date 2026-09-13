@@ -1,0 +1,26 @@
+<!-- Classic circular ignition-style Start button (pre-cinematic-animation version).
+     Kept as its own partial so options.html can revert to this instantly:
+     swap the cinematic include in options.html back to this file's name. -->
+<div class="ignition-wrap">
+  <button type="submit" class="btn-ignition" id="ignition-btn" aria-label="{{ run_label }}">
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v8"/><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/></svg>
+    <span>START</span>
+  </button>
+  <div class="ignition-caption">{{ run_label }}</div>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('ignition-btn');
+    var form = document.getElementById('run-form');
+    if (!btn || !form) return;
+    btn.addEventListener('click', function (e) {
+      if (btn.classList.contains('igniting')) return;
+      e.preventDefault();
+      btn.classList.add('igniting');
+      setTimeout(function () {
+        form.submit();
+      }, 500);
+    });
+  })();
+</script>
