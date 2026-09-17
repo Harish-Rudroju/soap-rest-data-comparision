@@ -37,6 +37,7 @@ LOGIC_DATE = "DATE"
 LOGIC_PICKLIST = "PICKLIST"
 LOGIC_NUMBER = "NUMBER"
 LOGIC_CASE_INSENSITIVE = "CASE_INSENSITIVE"
+LOGIC_BOOLEAN = "BOOLEAN"
 # Any field not explicitly assigned a logic uses this -- case-insensitive,
 # not STRICT. STRICT is still available as an explicit opt-in choice for
 # fields where exact casing genuinely matters.
@@ -47,6 +48,38 @@ def is_blank(value) -> bool:
     if value is None:
         return True
     return str(value).strip().lower() in BLANK_TOKENS
+
+
+def _is_boolean_false(value) -> bool:
+    if value is None:
+        return False
+    return str(value).strip().lower() == "false"
+
+
+def _is_boolean_only_field(soap_by_id: dict, rest_by_id: dict) -> bool:
+    """True if every non-blank value for this field, on both sides, is
+    exactly 'true' or 'false' (case-insensitive) -- i.e. this is genuinely
+    a boolean field, auto-detected from the actual data rather than
+    requiring the user to assign BOOLEAN logic by hand. An all-blank field
+    doesn't count (nothing to detect from): at least one True/False value
+    somewhere is required."""
+    values = list(soap_by_id.values()) + list(rest_by_id.values())
+    non_blank = [v for v in values if not is_blank(v)]
+    if not non_blank:
+        return False
+    return all(str(v).strip().lower() in ("true", "false") for v in non_blank)
+
+
+def _is_blank_equivalent(soap_val, rest_val, logic: str) -> bool:
+    """True for a genuinely blank-blank pair, OR (BOOLEAN logic only) a
+    False-False pair. A boolean field's False is usually just NetSuite's
+    default/unset state -- as uninformative as a blank -- so both-False
+    gets the same treatment as both-blank: skipped entirely in N-sample
+    mode, reported as 'Unverified' rather than 'Verified' in FULL mode.
+    True-True is unaffected and still counts as real Verified evidence."""
+    if is_blank(soap_val) and is_blank(rest_val):
+        return True
+    return logic == LOGIC_BOOLEAN and _is_boolean_false(soap_val) and _is_boolean_false(rest_val)
 
 
 CSV_ENCODING_FALLBACKS = ["utf-8-sig", "cp1252", "latin-1"]
@@ -340,6 +373,30 @@ def _classify_number(soap_val: str, rest_val: str):
     return "Mismatch", "Values differ"
 
 
+def _classify_default(soap_val: str, rest_val: str):
+    """Called only when the raw strings already differ and neither side is
+    blank, for a field left at the DEFAULT (unassigned) logic -- fields
+    explicitly assigned DATE/PICKLIST/NUMBER/STRICT use only their own
+    check, never this one (see PROJECT.md 6.3a). Gives the default path the
+    'benefit of the doubt' across all three benign-difference checks, tried
+    in order, before finally calling it a real Mismatch: case-insensitive
+    (same value, different casing), then Picklist-style (same values,
+    different order), then Number-style (same number, different
+    formatting/precision). Each sub-check's own Mismatch fallback text is
+    discarded here -- only an Accepted-Mismatch result from any of them is
+    taken; if all three fail to explain the difference, the value is a
+    genuine Mismatch."""
+    if soap_val.lower() == rest_val.lower():
+        return "Accepted-Mismatch", "Same value, different casing"
+    tested, comment = _classify_picklist(soap_val, rest_val)
+    if tested == "Accepted-Mismatch":
+        return tested, comment
+    tested, comment = _classify_number(soap_val, rest_val)
+    if tested == "Accepted-Mismatch":
+        return tested, comment
+    return "Mismatch", "Values differ"
+
+
 def _classify(soap_val: str, rest_val: str, logic: str = DEFAULT_LOGIC):
     """Returns (tested, comment) for a pair of non-both-blank values."""
     soap_blank = is_blank(soap_val)
@@ -358,7 +415,14 @@ def _classify(soap_val: str, rest_val: str, logic: str = DEFAULT_LOGIC):
         return _classify_number(soap_val, rest_val)
     if logic == LOGIC_STRICT:
         return "Mismatch", "Values differ"
-    return _classify_case_insensitive(soap_val, rest_val)
+    if logic == LOGIC_BOOLEAN:
+        # No benefit of the doubt for a boolean disagreement (e.g. True vs
+        # False) -- only casing leniency, same as before. Order/number
+        # checks make no sense for a two-value field and could only ever
+        # mask a genuine True-vs-False mismatch, which must stay a real
+        # Mismatch (see PROJECT.md 6.3a).
+        return _classify_case_insensitive(soap_val, rest_val)
+    return _classify_default(soap_val, rest_val)
 
 
 def _compare_field_sample(field_label, soap_by_id, rest_by_id, ordered_matched_ids, n, logic=DEFAULT_LOGIC) -> list:
@@ -368,7 +432,7 @@ def _compare_field_sample(field_label, soap_by_id, rest_by_id, ordered_matched_i
             break
         soap_val = soap_by_id.get(record_id, "")
         rest_val = rest_by_id.get(record_id, "")
-        if is_blank(soap_val) and is_blank(rest_val):
+        if _is_blank_equivalent(soap_val, rest_val, logic):
             continue
         tested, comment = _classify(soap_val, rest_val, logic)
         rows.append(EvidenceRow(record_id, field_label, soap_val, rest_val, tested, comment))
@@ -386,8 +450,9 @@ def _compare_field_full(field_label, soap_by_id, rest_by_id, ordered_matched_ids
     for record_id in ordered_matched_ids:
         soap_val = soap_by_id.get(record_id, "")
         rest_val = rest_by_id.get(record_id, "")
-        if is_blank(soap_val) and is_blank(rest_val):
-            rows.append(EvidenceRow(record_id, field_label, soap_val, rest_val, "Unverified", ""))
+        if _is_blank_equivalent(soap_val, rest_val, logic):
+            reason = "Both blank" if is_blank(soap_val) and is_blank(rest_val) else "Both False"
+            rows.append(EvidenceRow(record_id, field_label, soap_val, rest_val, "Unverified", reason))
             continue
         tested, comment = _classify(soap_val, rest_val, logic)
         rows.append(EvidenceRow(record_id, field_label, soap_val, rest_val, tested, comment))
@@ -416,8 +481,12 @@ def build_reports(
     has_default_key), otherwise chosen by the user. ignored_fields: fields
     the user explicitly chose to exclude from comparison entirely (e.g.
     lookup/Id fields that are expected to always differ). field_logic:
-    {field_label: 'DATE'|'PICKLIST'} for fields the user assigned a
-    non-default comparison logic to -- any field not listed uses STRICT."""
+    {field_label: 'DATE'|'PICKLIST'|...} for fields the user assigned a
+    non-default comparison logic to -- any field not listed uses
+    DEFAULT_LOGIC (case-insensitive). A field auto-detected as boolean
+    (see _is_boolean_only_field) always gets BOOLEAN logic regardless of
+    what's in field_logic, including overriding an explicit assignment --
+    BOOLEAN isn't a manual dropdown choice at all (see PROJECT.md §6.4a)."""
     common_fields, only_in_soap, only_in_rest = diff_columns(soap_df, rest_df, key_columns, ignored_fields)
     matched_ids, only_in_soap_ids, only_in_rest_ids = match_records(soap_df, rest_df, key_columns)
     field_logic = field_logic or {}
@@ -437,6 +506,8 @@ def build_reports(
         rest_by_id = rest_indexed[field_label].to_dict()
         testing_size = default_testing_size
         logic = field_logic.get(field_label, DEFAULT_LOGIC)
+        if _is_boolean_only_field(soap_by_id, rest_by_id):
+            logic = LOGIC_BOOLEAN
         field_rows = compare_field(field_label, soap_by_id, rest_by_id, ordered_matched_ids, testing_size, default_n, logic)
         comparison_rows.extend(field_rows)
 
@@ -504,7 +575,7 @@ def build_negative_case_report(soap_df: pd.DataFrame, rest_df: pd.DataFrame, key
     return rows, column_diff
 
 
-COMPARISON_COLUMNS = ["Field Label", "Soap Value", "Rest Value", "Evidence", "Tested", "Comments"]
+COMPARISON_COLUMNS = ["Field Label", "Evidence", "Soap Value", "Rest Value", "Tested", "Comments"]
 
 MAX_VERIFIED_EXAMPLES = 3
 MAX_MISMATCH_EXAMPLES = 5
@@ -512,24 +583,36 @@ MAX_ACCEPTED_MISMATCH_EXAMPLES = 5
 MAX_UNVERIFIED_EXAMPLES = 3
 
 
-def _pack_diverse_examples(bucket: list, cap: int) -> list:
-    """Prefers one example per distinct reason (the row's Comments text)
-    before repeating any reason, exceeding `cap` if there are more distinct
-    reasons than it allows -- so a field with several different kinds of
-    mismatch (e.g. 'Date differs, time matches' vs 'Values differ') shows
-    at least one of each in the condensed report, instead of possibly 5
-    near-duplicates of whichever reason happened to appear first."""
+def _pack_diverse_examples(bucket: list, cap: int, key=lambda r: r.comments, allow_exceed_cap: bool = True) -> list:
+    """Prefers one example per distinct `key(row)` before repeating any key.
+
+    `allow_exceed_cap=True` (the default, used for Mismatch/Accepted-Mismatch,
+    keyed on `.comments`) exceeds `cap` if there are more distinct keys than
+    it allows -- safe there because a field only ever has a handful of
+    possible *reason* strings (e.g. 'Date differs, time matches' vs 'Values
+    differ'), so this shows at least one of each instead of `cap`
+    near-duplicates of whichever reason happened to appear first.
+
+    `allow_exceed_cap=False` (used for Verified, keyed on `.soap_value`)
+    still prefers one example per distinct *value* first, but never returns
+    more than `cap` -- required there because a value (unlike a reason) can
+    have unbounded cardinality (numbers, names, ids...), so "exceed the cap
+    for diversity" would defeat the cap entirely, returning nearly every
+    record instead of the small sample the report is supposed to show."""
     if not bucket:
         return []
     by_reason = {}
     order = []
     for r in bucket:
-        if r.comments not in by_reason:
-            by_reason[r.comments] = []
-            order.append(r.comments)
-        by_reason[r.comments].append(r)
+        k = key(r)
+        if k not in by_reason:
+            by_reason[k] = []
+            order.append(k)
+        by_reason[k].append(r)
 
     picked = [by_reason[reason][0] for reason in order]
+    if not allow_exceed_cap and len(picked) > cap:
+        return picked[:cap]
     if len(picked) >= cap:
         return picked  # diversity alone already meets/exceeds the cap
     picked_ids = {id(r) for r in picked}
@@ -586,21 +669,56 @@ def condense_rows(rows: list) -> list:
         accepted = [r for r in group if r.tested == "Accepted-Mismatch"]
         unverified = [r for r in group if r.tested == "Unverified"]
         total = len(group)
+        unverified_reasons = {
+            "False" if r.comments.startswith("Both False") else "blank" for r in unverified
+        }
+        if not unverified_reasons:
+            unverified_desc = "both blank"  # count is 0 either way, wording is moot
+        elif unverified_reasons == {"False"}:
+            unverified_desc = "both False"
+        elif unverified_reasons == {"blank"}:
+            unverified_desc = "both blank"
+        else:
+            unverified_desc = "both blank or both False"
         summary = (
             f"Out of {total} compared, {len(verified)} verified, {len(mismatched)} mismatched, "
-            f"{len(accepted)} accepted-mismatch, and {len(unverified)} unverified (both blank)."
+            f"{len(accepted)} accepted-mismatch, and {len(unverified)} unverified ({unverified_desc})."
         )
 
-        for tested, bucket, cap, diversify in (
-            ("Verified", verified, MAX_VERIFIED_EXAMPLES, False),
-            ("Mismatch", mismatched, MAX_MISMATCH_EXAMPLES, True),
-            ("Accepted-Mismatch", accepted, MAX_ACCEPTED_MISMATCH_EXAMPLES, True),
-            ("Unverified", unverified, MAX_UNVERIFIED_EXAMPLES, False),
+        # The shared summary line is guaranteed to appear on Verified or
+        # Unverified whenever either exists. If a field has neither (only
+        # Mismatch and/or Accepted-Mismatch rows), it would otherwise never
+        # appear anywhere -- so it gets prepended to whichever of those two
+        # buckets is emitted first instead, tracked here.
+        summary_needs_injection = not verified and not unverified
+        injected_summary = False
+
+        for tested, bucket, cap, diversify_key in (
+            ("Verified", verified, MAX_VERIFIED_EXAMPLES, lambda r: r.soap_value),
+            ("Mismatch", mismatched, MAX_MISMATCH_EXAMPLES, lambda r: r.comments),
+            ("Accepted-Mismatch", accepted, MAX_ACCEPTED_MISMATCH_EXAMPLES, lambda r: r.comments),
+            ("Unverified", unverified, MAX_UNVERIFIED_EXAMPLES, None),
         ):
             if not bucket:
                 continue
-            sample = _pack_diverse_examples(bucket, cap) if diversify else bucket[:cap]
-            comments = [summary] if tested == "Verified" else [r.comments for r in sample]
+            if diversify_key:
+                sample = _pack_diverse_examples(bucket, cap, diversify_key, allow_exceed_cap=(tested != "Verified"))
+            else:
+                sample = bucket[:cap]
+
+            if tested in ("Verified", "Unverified"):
+                comments = [summary]
+            else:
+                # Mismatch / Accepted-Mismatch: a uniform reason across every
+                # packed example is shown once, not repeated per example
+                # (same principle as Verified/Unverified's single summary
+                # line) -- only genuinely distinct reasons get their own line.
+                distinct_reasons = {r.comments for r in sample}
+                comments = [sample[0].comments] if len(distinct_reasons) == 1 else [r.comments for r in sample]
+                if summary_needs_injection and not injected_summary:
+                    comments = [summary] + comments
+                    injected_summary = True
+
             condensed.append(
                 CondensedRow(
                     field_label,
@@ -619,9 +737,9 @@ def condensed_to_dataframe(condensed_rows: list, separator: str) -> pd.DataFrame
         [
             {
                 "Field Label": r.field_label,
+                "Evidence": separator.join(r.evidences),
                 "Soap Value": separator.join(r.soap_values),
                 "Rest Value": separator.join(r.rest_values),
-                "Evidence": separator.join(r.evidences),
                 "Tested": r.tested,
                 "Comments": separator.join(r.comments),
             }
@@ -659,7 +777,7 @@ def flat_rows_to_dataframe(rows: list) -> pd.DataFrame:
     )
 
 
-MISMATCHED_RECORDS_COLUMNS = ["Field Label", "Soap Value", "Rest Value", "Evidence", "Comments"]
+MISMATCHED_RECORDS_COLUMNS = ["Field Label", "Evidence", "Soap Value", "Rest Value", "Comments"]
 
 
 def mismatched_rows_to_dataframe(rows: list) -> pd.DataFrame:
@@ -672,9 +790,9 @@ def mismatched_rows_to_dataframe(rows: list) -> pd.DataFrame:
         [
             {
                 "Field Label": r.field_label,
+                "Evidence": r.evidence,
                 "Soap Value": r.soap_value,
                 "Rest Value": r.rest_value,
-                "Evidence": r.evidence,
                 "Comments": r.comments,
             }
             for r in mismatches

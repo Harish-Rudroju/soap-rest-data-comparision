@@ -104,14 +104,14 @@
             <p class="subsection-desc">By default, every step of the wizard is always shown. Uncheck a step below to skip it automatically when it isn't needed.</p>
 
             <label class="checkbox-row">
-              <input type="checkbox" name="always_show_mapping" {{ 'checked' if (not cp) or cp.always_show_mapping else '' }}>
+              <input type="checkbox" name="always_show_mapping" {{ 'checked' if cp and cp.always_show_mapping else '' }}>
               <div class="checkbox-text">
                 <div class="checkbox-title">Always show Map Unmatched Fields</div>
                 <div class="checkbox-desc">Unchecked: only shown if some fields don't already share the same name across SOAP and REST.</div>
               </div>
             </label>
             <label class="checkbox-row">
-              <input type="checkbox" name="always_show_key" {{ 'checked' if (not cp) or cp.always_show_key else '' }}>
+              <input type="checkbox" name="always_show_key" {{ 'checked' if cp and cp.always_show_key else '' }}>
               <div class="checkbox-text">
                 <div class="checkbox-title">Always show Select Matching Key</div>
                 <div class="checkbox-desc">Unchecked: only shown if an "Internal Id" column isn't found in both sheets.</div>
@@ -216,14 +216,14 @@
             <p class="subsection-desc">By default, every step of the wizard is always shown. Uncheck a step below to skip it automatically when it isn't needed.</p>
 
             <label class="checkbox-row">
-              <input type="checkbox" name="neg_always_show_mapping" {{ 'checked' if (not np) or np.always_show_mapping else '' }}>
+              <input type="checkbox" name="neg_always_show_mapping" {{ 'checked' if np and np.always_show_mapping else '' }}>
               <div class="checkbox-text">
                 <div class="checkbox-title">Always show Map Unmatched Fields</div>
                 <div class="checkbox-desc">Unchecked: only shown if some fields don't already share the same name across SOAP and REST.</div>
               </div>
             </label>
             <label class="checkbox-row">
-              <input type="checkbox" name="neg_always_show_key" {{ 'checked' if (not np) or np.always_show_key else '' }}>
+              <input type="checkbox" name="neg_always_show_key" {{ 'checked' if np and np.always_show_key else '' }}>
               <div class="checkbox-text">
                 <div class="checkbox-title">Always show Select Matching Key</div>
                 <div class="checkbox-desc">Unchecked: only shown if an "Internal Id" column isn't found in both sheets.</div>

@@ -85,11 +85,15 @@ def _render_drop_fields(pending_id, soap_df, rest_df, key_columns, object_name, 
 def _render_field_logic(pending_id, soap_df, rest_df, key_columns, object_name, ignored_fields=None, field_logic=None):
     available_fields, _, _ = engine.diff_columns(soap_df, rest_df, key_columns, ignored_fields)
     field_logic = field_logic or {}
-    # Any field with "date" in its name gets Date logic pre-selected as a
-    # starting suggestion (tagged "Auto Selected" in the UI) -- but only if
-    # the user hasn't already made an explicit choice for it; once
-    # confirmed (even left as-is), it's stored like any other choice.
-    auto_suggested_fields = [f for f in available_fields if "date" in f.lower() and f not in field_logic]
+    # Any field with "date" or "time" in its name gets Date/DateTime logic
+    # pre-selected as a starting suggestion (tagged "Auto Selected" in the
+    # UI) -- but only if the user hasn't already made an explicit choice
+    # for it; once confirmed (even left as-is), it's stored like any other
+    # choice.
+    auto_suggested_fields = [
+        f for f in available_fields
+        if ("date" in f.lower() or "time" in f.lower()) and f not in field_logic
+    ]
     return render_template(
         "field_logic.html",
         pending_id=pending_id,
@@ -119,7 +123,7 @@ def _advance_after_upload(pending_id, soap_df, rest_df, object_name, pending):
     of the pipeline the same way every other entry point does."""
     _, only_in_soap, only_in_rest = engine.diff_columns(soap_df, rest_df, [])
     needs_mapping = bool(only_in_soap or only_in_rest)
-    if pending.get("always_show_mapping", True) or needs_mapping:
+    if pending.get("always_show_mapping", False) or needs_mapping:
         return _render_map_columns(
             pending_id, soap_df, rest_df, [], object_name, mapping=pending.get("column_mapping", {})
         )
@@ -132,7 +136,7 @@ def _advance_after_mapping(pending_id, soap_df, rest_df, object_name, pending):
     Key or skip straight past it (default key already found)."""
     soap_df, rest_df = engine.apply_column_mapping(soap_df, rest_df, pending.get("column_mapping", {}))
     has_default_key = engine.has_default_key(soap_df, rest_df)
-    if pending.get("always_show_key", True) or not has_default_key:
+    if pending.get("always_show_key", False) or not has_default_key:
         default_selection = (
             engine.DEFAULT_KEY_COLUMNS if has_default_key else pending.get("key_columns", [])
         )
@@ -183,8 +187,8 @@ def _render_upload_with_prefill(pending_id, pending):
         "rest_filename": os.path.basename(pending["rest_path"]),
         "default_n": pending.get("default_n", 5),
         "full_by_default": pending.get("full_by_default", True),
-        "always_show_mapping": pending.get("always_show_mapping", True),
-        "always_show_key": pending.get("always_show_key", True),
+        "always_show_mapping": pending.get("always_show_mapping", False),
+        "always_show_key": pending.get("always_show_key", False),
         "always_show_drop": pending.get("always_show_drop", True),
         "always_show_field_logic": pending.get("always_show_field_logic", True),
     }
@@ -204,7 +208,7 @@ def _retreat_to_mapping_or_earlier(pending_id, pending):
     soap_df, rest_df = engine.normalize_key_column_names(soap_df, rest_df)
     _, only_in_soap, only_in_rest = engine.diff_columns(soap_df, rest_df, [])
     needs_mapping = bool(only_in_soap or only_in_rest)
-    if pending.get("always_show_mapping", True) or needs_mapping:
+    if pending.get("always_show_mapping", False) or needs_mapping:
         return _render_map_columns(
             pending_id, soap_df, rest_df, [], pending["object_name"], mapping=pending.get("column_mapping", {})
         )
@@ -223,7 +227,7 @@ def _retreat_to_key_or_earlier(pending_id, pending):
     soap_df, rest_df = engine.normalize_key_column_names(soap_df, rest_df)
     soap_df, rest_df = engine.apply_column_mapping(soap_df, rest_df, pending.get("column_mapping", {}))
     has_default_key = engine.has_default_key(soap_df, rest_df)
-    if pending.get("always_show_key", True) or not has_default_key:
+    if pending.get("always_show_key", False) or not has_default_key:
         return _render_select_key(
             pending_id, soap_df, rest_df, pending["object_name"], selected_keys=pending.get("key_columns", [])
         )

@@ -133,12 +133,24 @@ X" checkbox in Advanced Options (see §5). Two of the four steps also have
 an *automatic* need-detection that forces them to show even if their
 checkbox is unchecked:
 
-| Step | Checkbox (default: checked) | Auto-shows even if unchecked, when... |
+| Step | Checkbox (default) | Auto-shows even if unchecked, when... |
 |---|---|---|
-| Map Unmatched Fields | `always_show_mapping` | some SOAP/REST columns don't share a name (`needs_mapping`) |
-| Select Matching Key | `always_show_key` | no `Internal Id`-like column found in both sheets (`has_default_key` is false) |
-| Drop Fields | `always_show_drop` | never — pure user choice, no way to detect "need" |
-| Field Comparison Logic | `always_show_field_logic` | never — pure user choice; **compare-flow only**, see §7 |
+| Map Unmatched Fields | `always_show_mapping` (**unchecked**) | some SOAP/REST columns don't share a name (`needs_mapping`) |
+| Select Matching Key | `always_show_key` (**unchecked**) | no `Internal Id`-like column found in both sheets (`has_default_key` is false) |
+| Drop Fields | `always_show_drop` (checked) | never — pure user choice, no way to detect "need" |
+| Field Comparison Logic | `always_show_field_logic` (checked) | never — pure user choice; **compare-flow only**, see §7 |
+
+**`always_show_mapping`/`always_show_key` default unchecked** — deliberately
+different from the other two. Since both steps already auto-show whenever
+they're actually needed (`needs_mapping`/`has_default_key` above), leaving
+them checked by default meant they showed up on *every* run even when
+there was nothing to map and a default key was found — pure friction. Both
+the index page checkbox (`{{ 'checked' if cp and cp.always_show_mapping
+else '' }}` — only checked if a prior submission set it true, not just
+because there's no prior submission at all) and the `pending.get(...,
+False)` fallback in `app.py` were changed together; `always_show_drop`/
+`always_show_field_logic` have no auto-detection to fall back on, so they
+stay checked by default.
 
 ### 3.2 Forward flow: the `_advance_after_*` chain
 
@@ -259,6 +271,32 @@ builds the actual per-row match key:
   e.g. `"Field: value, Field2: value2"`, so the report still tells you
   which record it is even without a single ID column.
 
+**Picking a valid key — and the failure mode when it's wrong.** The tool
+never checks key uniqueness — if the chosen key column(s) aren't actually
+unique per row, `_composite_key_series` still produces a key, matching
+degenerates into many-to-one/many-to-many, and rows from completely
+unrelated records get compared as if they were the same record.
+
+Symptom seen in practice: comparing NetSuite Sales Order **line items**
+using `ItemInternalId__c` alone as the key — that field identifies the
+*item/SKU*, not the line, so one item sold on hundreds of different order
+lines collapses into one "record." The condensed report showed identical
+`Evidence` example values recurring across otherwise-unrelated groups
+(e.g. the same values appearing under both a `Verified` bucket and an
+`Unverified` bucket for the same field) — that recurrence is the tell that
+the key isn't unique, not a bug in the comparison/condensing logic.
+
+Line-item-level objects usually have **no single unique column** in a flat
+export (no `Internal Id`, no `ExternalId__c`) — `Name`/`Line__c` is just
+the line number (reused across every parent record) and
+`ItemInternalId__c` identifies the item, not the line. The fix is a
+**composite key** of parent-record identifier + line number, e.g.
+`Sales_Order__r.Name` + `Line__c` — check both sides for near-zero
+duplicates on that composite (`Sales_Order__r.Name + "||" + Line__c`)
+before trusting the run. A handful of leftover duplicates after that is
+usually a genuine data artifact (e.g. a re-added line), not a key-choice
+problem.
+
 ### 4.2 Blank handling
 
 `is_blank(value)`: `None`, empty string, or (case-insensitive, stripped)
@@ -316,8 +354,9 @@ the third, Field Comparison Logic, is compare-only, see below):
    feature was removed entirely** — testing size is now a single global
    setting, not per-field (per-field *comparison logic* is now handled by
    the Field Comparison Logic wizard step instead, see §6).
-3. **Wizard Steps** — the four "Always show X" checkboxes from §3.1,
-   all checked by default. The negative tab only has three (no Field
+3. **Wizard Steps** — the four "Always show X" checkboxes from §3.1 (Map
+   and Key default unchecked, Drop and Field Comparison Logic default
+   checked). The negative tab only has three (no Field
    Comparison Logic checkbox — see §7).
 
 ---
@@ -335,15 +374,20 @@ exists to let QA tell the tool *which* fields need smarter handling,
 without writing code — just picking from a dropdown on the **Field
 Comparison Logic** wizard page.
 
-### 6.2 The five logic types
+### 6.2 The five manually-assignable logic types (+ one automatic one)
 
 | Logic (`field_logic` value) | UI label | Applies to |
 |---|---|---|
 | *(empty string / unassigned)* | "Case-insensitive (default)" | every field, unless explicitly overridden |
 | `STRICT` | "Strict (case-sensitive)" | opt-in only — for fields where exact casing genuinely matters |
-| `DATE` | "Date" | date or datetime fields |
+| `DATE` | "Date/DateTime" | date or datetime fields |
 | `PICKLIST` | "Picklist (order-insensitive)" | multi-value fields where value order doesn't matter |
 | `NUMBER` | "Number" | numeric fields |
+
+`BOOLEAN` also exists (see §6.4a) but is **not** in this dropdown — it's
+applied automatically, not manually assigned. See §6.4a for why, and for
+what "automatically" means precisely (it overrides *any* manual choice,
+including one of the five above).
 
 **Case-insensitive is the default for every unassigned field** — this was
 an explicit, deliberate decision (see conversation history: "I want this
@@ -365,27 +409,61 @@ def _classify(soap_val, rest_val, logic=DEFAULT_LOGIC):
     #    the cheapest, most unambiguous path to Verified:
     if soap_val == rest_val: return "Verified", ""
     # 3. Only reached when the raw strings differ and neither is blank --
-    #    dispatch to the assigned logic:
+    #    dispatch to the assigned logic. Each of DATE/PICKLIST/NUMBER/
+    #    STRICT is EXCLUSIVE -- only its own check ever runs, no fallback
+    #    to any other logic's leniency:
     if logic == LOGIC_DATE: return _classify_date(...)
     if logic == LOGIC_PICKLIST: return _classify_picklist(...)
     if logic == LOGIC_NUMBER: return _classify_number(...)
     if logic == LOGIC_STRICT: return "Mismatch", "Values differ"   # <- must be explicit, see below
-    return _classify_case_insensitive(...)   # default fallback
+    if logic == LOGIC_BOOLEAN: return _classify_case_insensitive(...)  # casing only, no benefit of the doubt beyond that
+    return _classify_default(...)   # true default/unassigned fallback -- see below
 ```
 
 **Why the `STRICT` branch has to be explicit, not implicit:** without it,
-a `STRICT` field would fall through to the final `_classify_case_insensitive`
-call and silently get case-insensitive treatment anyway — completely
-defeating the point of offering `STRICT` as a distinct opt-in. The
-explicit `if logic == LOGIC_STRICT: return "Mismatch", ...` line is what
-*intercepts* a strict field before it ever reaches the default fallback.
+a `STRICT` field would fall through to the final `_classify_default`/
+`_classify_case_insensitive` call and silently get leniency anyway —
+completely defeating the point of offering `STRICT` as a distinct opt-in.
+The explicit `if logic == LOGIC_STRICT: return "Mismatch", ...` line is
+what *intercepts* a strict field before it ever reaches any fallback.
+
+**`_classify_default` — the true default/unassigned path gets three
+layers of benefit of the doubt, not just one.** A field left unassigned
+(the vast majority of fields, in practice) tries, in order: (1)
+case-insensitive equality — same value, different casing; (2)
+Picklist-style order-insensitive equality — same values, different order
+(e.g. `"A;B"` vs `"B;A"`); (3) Number-style formatting-insensitive
+equality — same number, different precision/formatting (e.g. `"2.50"` vs
+`"2.5"`). Each sub-check's own `Mismatch` fallback text is discarded here
+— only an `Accepted-Mismatch` result from any of the three is taken; if
+all three fail to explain the difference, it's a genuine `Mismatch`,
+`"Values differ"`.
+
+**This benefit-of-the-doubt chain is deliberately scoped to the default
+path only** — an explicit assignment is exclusive (§ above: `DATE` only
+ever tries `_classify_date`, never picklist/number leniency too, even if
+its own date-parsing fails and falls back to `"Values differ"`), and
+`BOOLEAN` gets only casing leniency, never order/number — a real
+`True`/`False` disagreement must always stay a hard `Mismatch`, no benefit
+of the doubt, since order/number checks make no sense for a two-value
+field and could only ever mask a genuine boolean disagreement.
+
+**Standing rule for any future comparison logic added to this system:**
+when adding a new logic type, either (a) add it into `_classify_default`'s
+benefit-of-the-doubt chain too (if it's the kind of check that plausibly
+applies to a generic, unassigned field — like Picklist and Number are),
+or (b) explicitly ask the user whether it belongs there, rather than
+silently deciding either way. Don't assume a new logic is exclusive-only
+(like `DATE`/`STRICT`) or stacked-into-default (like `PICKLIST`/`NUMBER`)
+without checking — this was a deliberate, explicit decision each time
+(see conversation history), not an obvious default either way.
 
 **`Verified` can only ever come from step 2** (exact string match). None
 of `_classify_date` / `_classify_picklist` / `_classify_number` /
-`_classify_case_insensitive` ever return `"Verified"` — they're only
-reached because step 2 already failed, so by construction there's nothing
-left for them to verify. They only ever return `Accepted-Mismatch` or
-`Mismatch`.
+`_classify_case_insensitive` / `_classify_default` ever return
+`"Verified"` — they're only reached because step 2 already failed, so by
+construction there's nothing left for them to verify. They only ever
+return `Accepted-Mismatch` or `Mismatch`.
 
 ### 6.4 `Accepted-Mismatch` — the fourth Tested status
 
@@ -422,6 +500,59 @@ Per-logic rules for what counts as "benign":
   `.lower()` both sides and compare. Same → `Accepted-Mismatch`, `"Same
   value, different casing"`. Different → `Mismatch`, `"Values differ"`.
 
+### 6.4a `BOOLEAN` logic — auto-detected, False treated as blank
+
+**Not manually assignable — auto-detected from the data, and always
+wins.** `build_reports` computes, per field, `_is_boolean_only_field(
+soap_by_id, rest_by_id)`: true if every non-blank value for that field, on
+*both* sides, is exactly `"true"` or `"false"` (case-insensitive) — an
+all-blank field doesn't count, since there's nothing to detect. If true,
+`logic` is forced to `LOGIC_BOOLEAN` for that field **regardless of
+`field_logic`** — even overriding an explicit manual assignment (e.g.
+`STRICT`) the user made for that field in the Field Comparison Logic
+wizard step. There is deliberately no dropdown entry for it (§6.2) —
+picking anything for a genuinely true/false-only field has no effect,
+since auto-detection overrides it anyway, so offering the choice would
+just be misleading.
+
+Why auto-detect instead of a manual opt-in: a boolean field is
+unambiguously identifiable from its actual values (unlike, say, telling a
+date field from a plain number, which genuinely needs a human's judgment)
+— there's no scenario where a field that's 100% true/false-valued
+*shouldn't* get this treatment, so making the user configure it added a
+step with no real decision in it.
+
+Unlike the other five logics, `BOOLEAN` doesn't hook into `_classify`'s
+dispatch at all (a False/False or True/True pair is never *unequal*, so
+it never even reaches step 3's dispatch — see §6.3). Instead it hooks into
+the **blank-equivalence check** that both `_compare_field_sample` and
+`_compare_field_full` run before calling `_classify`:
+`_is_blank_equivalent(soap_val, rest_val, logic)` returns `True` for a
+real blank-blank pair (as always), **or**, when `logic == LOGIC_BOOLEAN`,
+for a `False`/`False` pair (case-insensitive, via `_is_boolean_false`).
+
+Rationale: a boolean field's `False` is usually just NetSuite/Salesforce's
+default/unset state — as uninformative as a blank cell, not a positive
+confirmation that both systems computed the same real value. So:
+
+- **N-sample mode**: a `False`/`False` pair is skipped entirely, exactly
+  like blank-blank — it never consumes one of the N sample slots.
+- **FULL mode**: a `False`/`False` pair is reported as `Unverified`, not
+  `Verified` — same distinct-third-outcome treatment as blank-blank.
+- **`True`/`True`** is completely unaffected — still a normal `Verified`
+  match (via `_classify`'s step-2 exact-match check, same as any other
+  logic). One side `True`, other `False` → still a normal `Mismatch`, also
+  unaffected (only a matching-False pair gets the blank treatment; a
+  False that disagrees with a True is not "uninformative").
+
+This was added after real QA data showed the opposite problem this logic
+now avoids: with `False` treated as a normal value, if `False`/`False`
+records happened to scan before any `True`/`True` records, the condensed
+report's Verified examples (see §8.1) could show 3 `False`/`False` rows
+and never surface that `True`/`True` matches existed too — worse, it also
+meant `False`/`False` (which proves nothing) was diluting/hiding genuine
+`Mismatch`/`Unverified` signal for that field.
+
 ### 6.5 Field-level status rollup priority
 
 A field's overall dashboard status (used for the Results page stat cards)
@@ -448,21 +579,29 @@ Unverified**, plus **Missing records** (a record present in one export
 but not the other — computed separately, not part of this priority
 scheme).
 
-### 6.6 Auto-suggestion: "Date" for fields with "date" in the name
+### 6.6 Auto-suggestion: "Date/DateTime" for fields with "date" or "time" in the name
 
-`_render_field_logic` in `app.py` computes
-`auto_suggested_fields = [f for f in available_fields if "date" in
-f.lower() and f not in field_logic]` — any field whose name contains
-"date" (case-insensitive substring, e.g. `Created Date`, `Last Modified
-Date`) gets `DATE` pre-selected in its dropdown, tagged with a small
-purple **"Auto Selected"** ribbon (`.pill-mini.pill-mini-accent` in
-`style.css`). This is purely a starting suggestion, not a lock: the
-dropdown is fully editable, and the tag disappears the moment the row's
-`<select>` fires a `change` event (see the JS in `field_logic.html`) —
-once the user touches it, it's their explicit choice either way. Note the
-condition `f not in field_logic`: an already-confirmed choice for that
-field (from a previous visit / Back-then-forward) is never overridden by
-the auto-suggestion.
+`_render_field_logic` in `app.py` computes `auto_suggested_fields = [f for
+f in available_fields if ("date" in f.lower() or "time" in f.lower()) and
+f not in field_logic]` — any field whose name contains "date" **or**
+"time" (case-insensitive substring, e.g. `Created Date`, `Last Modified
+Date`, `Start Time__c`) gets `DATE` pre-selected in its dropdown (UI label
+"Date/DateTime"), tagged with a small purple **"Auto Selected"** ribbon
+(`.pill-mini.pill-mini-accent` in `style.css`). This is purely a starting
+suggestion, not a lock: the dropdown is fully editable, and the tag
+disappears the moment the row's `<select>` fires a `change` event (see the
+JS in `field_logic.html`) — once the user touches it, it's their explicit
+choice either way. Note the condition `f not in field_logic`: an
+already-confirmed choice for that field (from a previous visit /
+Back-then-forward) is never overridden by the auto-suggestion.
+
+**Known over-trigger, accepted as a tradeoff:** adding "time" catches a
+field like `Time Zone__c` too, even though a timezone identifier isn't a
+date/time *value* to parse — there's no cheap name-based way to tell
+"Start Time" from "Time Zone" apart. Not fixed, because it's just a
+pre-selected suggestion the user can (and should, for a field like that)
+override — broadening the heuristic to actually catch more real date/time
+fields was judged worth the occasional false positive.
 
 ### 6.7 `QA_NOTE_CLASSIFICATION_GUIDE.md`
 
@@ -535,6 +674,15 @@ with the compare flow, but:
 All four are generated together by `_run_compare` → written to a
 per-request temp dir → served via `/download/<request_id>/<which>`.
 
+**Column order** (`COMPARISON_COLUMNS` / `MISMATCHED_RECORDS_COLUMNS` in
+`comparison_engine.py`): `Field Label, Evidence, Soap Value, Rest Value,
+[Tested,] Comments` — `Evidence` comes right after `Field Label`, before
+the two values, on every report that has all three columns (Field
+Comparison, Mismatched Records, and the flat Negative Case report). This
+is an explicit ordering choice, not incidental — changing it means editing
+both column-order constants, not just one, since they're independent
+lists (not derived from each other).
+
 1. **Field Comparison Report** (`comparison_csv`/`comparison_xlsx`) — the
    main condensed report. See §8.1 for exactly how condensing works.
 2. **Missing Records Report** (`missing_csv`/`missing_xlsx`) — one row per
@@ -564,21 +712,39 @@ condensed rows per field:
 
 | Tested | Cap constant | Value | Diversified? |
 |---|---|---|---|
-| `Verified` | `MAX_VERIFIED_EXAMPLES` | 3 | No — first N in scan order |
-| `Mismatch` | `MAX_MISMATCH_EXAMPLES` | 5 | **Yes** |
-| `Accepted-Mismatch` | `MAX_ACCEPTED_MISMATCH_EXAMPLES` | 5 | **Yes** |
+| `Verified` | `MAX_VERIFIED_EXAMPLES` | 3 | **Yes — by value** |
+| `Mismatch` | `MAX_MISMATCH_EXAMPLES` | 5 | **Yes — by reason** |
+| `Accepted-Mismatch` | `MAX_ACCEPTED_MISMATCH_EXAMPLES` | 5 | **Yes — by reason** |
 | `Unverified` | `MAX_UNVERIFIED_EXAMPLES` | 3 | No — first N in scan order |
 
-**Diversified packing** (`_pack_diverse_examples`): for Mismatch and
-Accepted-Mismatch, instead of blindly taking the first N examples in scan
-order (which could all coincidentally be the same underlying reason), it
-groups by the row's exact `.comments` string and takes one example per
-distinct reason first — **exceeding the cap if there are more distinct
-reasons than it allows** — then, only if there's still room, pads up to
-the cap with more examples of whatever reason. So a Date field with both
-"Date differs, time matches" and "Time differs, date matches" mismatches
-will show at least one of each, not 5 near-duplicates of whichever
-happened to scan first.
+**Diversified packing** (`_pack_diverse_examples(bucket, cap, key,
+allow_exceed_cap)`): instead of blindly taking the first N examples in
+scan order (which could all coincidentally be the same underlying
+value/reason), it groups by `key(row)` and takes one example per distinct
+key first, then, only if there's still room, pads up to the cap with more
+examples of whatever key.
+
+- **Mismatch / Accepted-Mismatch** key off the row's exact `.comments`
+  string (the reason), with `allow_exceed_cap=True` (the default) —
+  **exceeding the cap if there are more distinct reasons than it allows**.
+  Safe here because a field only ever has a handful of possible *reason*
+  strings (e.g. "Date differs, time matches" vs "Values differ"), so a
+  Date field with both will show at least one of each, not 5
+  near-duplicates of whichever happened to scan first.
+- **Verified** keys off `.soap_value` instead, with `allow_exceed_cap=False`
+  — an exact match has no per-record reason (`.comments` is blank for all
+  of them), so diversifying by reason would do nothing; diversifying by
+  value instead surfaces a boolean field's `True`/`True` matches even when
+  `False`/`False` happens to scan first. **`allow_exceed_cap` must be
+  `False` here**, unlike Mismatch/Accepted-Mismatch: a *value* (unlike a
+  reason) can have unbounded cardinality — a numeric or free-text field can
+  have a different value on nearly every row. Trying "one example per
+  distinct value, exceed the cap if needed" on Verified was tried and
+  immediately broke in production: a field with 47 verified records, all
+  different numbers, dumped all 47 as "diverse examples" instead of the
+  intended 3. `allow_exceed_cap=False` still prefers one example per
+  distinct value first, but truncates to `cap` no matter how many distinct
+  values exist.
 
 Why this matters concretely: Date/Picklist/Number/Case-insensitive logic
 introduced *genuinely different reasons* a field can mismatch (unlike the
@@ -589,19 +755,45 @@ buried.
 
 **Comments column, per bucket:**
 
-- `Verified` rows have no per-record reason (nothing to explain about an
-  exact match) — the Comments column shows one shared scan-summary line
-  instead: `"Out of N compared, X verified, Y mismatched, Z
-  accepted-mismatch, and W unverified (both blank)."`
-- **Every other bucket carries the real, specific per-record reason**
-  (e.g. `"Same value, different casing"`, `"Date differs, time matches"`)
-  — this was a deliberate fix (previously *all* buckets shared the one
-  generic summary line, which for `Accepted-Mismatch` rows meant the
-  actual "why" was never shown anywhere in the condensed report — a real
-  bug, since Fixed, see conversation history). Each packed example's own
-  comment already includes its FULL-mode context suffix (`"(full scan: N
-  records, M mismatches)"`) baked in from `_compare_field_full`, so no
-  information is lost by dropping the shared summary for these buckets.
+- **`Verified` and `Unverified` both show one shared scan-summary line**,
+  not a per-example reason: `"Out of N compared, X verified, Y mismatched,
+  Z accepted-mismatch, and W unverified (both blank)."` — or `"(both
+  False)"` if every `Unverified` row in the group is a `BOOLEAN`-logic
+  False-False pair (§6.4a), or `"(both blank or both False)"` if the group
+  has a mix of both reasons. Grouped together deliberately: neither bucket
+  has a per-record reason worth repeating — an exact match needs no
+  explanation, and "blank-blank" / "False-False" is definitionally the
+  only possible reason a record lands in `Unverified` at all (there's no
+  second scenario it could be), so showing the same one-line reason N
+  times across N packed examples added nothing. Per-record `EvidenceRow`
+  comments (`"Both blank"` / `"Both False"`, set in `_compare_field_full`
+  right where `_is_blank_equivalent` fires) still exist and still drive
+  the summary's own `(both blank)`/`(both False)` wording — they're just
+  not surfaced per-example in the condensed report anymore.
+- **`Mismatch` / `Accepted-Mismatch` carry the real, specific per-record
+  reason** (e.g. `"Same value, different casing"`, `"Date differs, time
+  matches"`) — this was a deliberate fix (previously *all* buckets shared
+  the one generic summary line, which for `Accepted-Mismatch` rows meant
+  the actual "why" was never shown anywhere in the condensed report — a
+  real bug, since fixed). Each packed example's own comment already
+  includes its FULL-mode context suffix (`"(full scan: N records, M
+  mismatches)"`) baked in from `_compare_field_full`.
+  - **But if every packed example shares the exact same reason string**,
+    it's shown **once**, not repeated per example — same "don't repeat an
+    identical line N times" principle as Verified/Unverified. Only
+    genuinely *distinct* reasons among the packed examples (e.g. one
+    example says "Date differs, time matches" and another says "Time
+    differs, date matches") get their own separate comment line. Computed
+    per-field from `{r.comments for r in sample}` — one distinct value
+    means one comment; more than one means the full per-example list.
+  - **The overall per-field summary line always appears somewhere.** It's
+    guaranteed on `Verified`/`Unverified` whenever either exists (see
+    above). A field with *neither* (only `Mismatch` and/or
+    `Accepted-Mismatch` rows) would otherwise never show it at all — so in
+    that case it's prepended as an extra leading comment line onto
+    whichever of `Mismatch`/`Accepted-Mismatch` is emitted first
+    (`Mismatch` takes priority if both exist), tracked via
+    `summary_needs_injection`/`injected_summary` in `condense_rows`.
 
 ### 8.2 N-sample vs FULL mode, and blank-blank handling
 
