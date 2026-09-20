@@ -836,3 +836,27 @@ than once during development and had to be reconciled after the fact):
    `field_logic.html`'s `LOGIC_OPTIONS`, and — if it should ever produce
    `Accepted-Mismatch` — nothing else, that status is already fully
    wired through condensing, the dashboard, and report exclusion.
+
+---
+
+## 14. Optional Graphify developer tooling
+
+This dedicated branch includes an optional, generated Graphify code graph under
+`graphify-out/` plus project-local skills for Codex and Claude Code. Graphify is
+the preferred first navigation tool for structural questions (architecture,
+dependencies, imports, inheritance, callers/callees, execution paths, and
+component relationships) when its CLI and graph are available. Its results are
+a navigation aid: agents must still inspect the cited source for exact behavior
+or before modifying code.
+
+The fallback is deliberate and load-bearing: if Graphify is absent, fails, or
+is stale, agents continue with this document, the repository's other Markdown
+instructions, and normal search/file-reading tools. Graphify is not listed in
+application dependencies and is never required to build, run, test, or develop
+the application normally.
+
+Generated artifacts are kept separate from application source. The shareable
+graph, report, analysis, and labels may be tracked on this branch;
+machine-local timestamp/root-marker/cache/cost/memory/reflection state is
+ignored via `.gitignore`. `.graphifyignore` excludes virtual environments,
+caches, prior Graphify output, and unrelated generated media from indexing.

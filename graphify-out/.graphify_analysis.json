@@ -1,0 +1,308 @@
+{
+  "communities": {
+    "0": [
+      "comparison_engine",
+      "comparison_engine_build_reports",
+      "comparison_engine_classify",
+      "comparison_engine_classify_case_insensitive",
+      "comparison_engine_classify_date",
+      "comparison_engine_classify_number",
+      "comparison_engine_classify_picklist",
+      "comparison_engine_compare_field",
+      "comparison_engine_compare_field_full",
+      "comparison_engine_compare_field_sample",
+      "comparison_engine_condense_rows",
+      "comparison_engine_condensed_to_dataframe",
+      "comparison_engine_condensedrow",
+      "comparison_engine_evidencerow",
+      "comparison_engine_is_blank",
+      "comparison_engine_pack_diverse_examples",
+      "comparison_engine_rationale_1",
+      "comparison_engine_rationale_260",
+      "comparison_engine_rationale_273",
+      "comparison_engine_rationale_314",
+      "comparison_engine_rationale_344",
+      "comparison_engine_rationale_379",
+      "comparison_engine_rationale_411",
+      "comparison_engine_rationale_516",
+      "comparison_engine_rationale_556",
+      "comparison_engine_rationale_635",
+      "comparison_engine_rows_to_dataframe",
+      "comparison_engine_try_parse_date",
+      "comparison_engine_try_parse_number",
+      "dataclasses",
+      "openpyxl",
+      "openpyxl_styles",
+      "typing"
+    ],
+    "1": [
+      "app_advance_after_upload",
+      "app_back_to_mapping",
+      "app_compare",
+      "app_negative_test",
+      "app_rationale_117",
+      "app_rationale_195",
+      "app_render_map_columns",
+      "app_resolve_namespace",
+      "app_retreat_to_mapping_or_earlier",
+      "app_save_upload",
+      "comparison_engine_diff_columns",
+      "comparison_engine_normalize_key_column_names",
+      "comparison_engine_normalize_namespaced_columns",
+      "comparison_engine_rationale_100",
+      "comparison_engine_rationale_114",
+      "comparison_engine_rationale_157",
+      "comparison_engine_strip_namespace"
+    ],
+    "2": [
+      "app_run_compare",
+      "app_run_negative",
+      "app_run_pending",
+      "comparison_engine_append_lines_to_csv",
+      "comparison_engine_blank_repeated_field_labels",
+      "comparison_engine_flat_rows_to_dataframe",
+      "comparison_engine_mismatch_summary_lines",
+      "comparison_engine_mismatched_rows_to_dataframe",
+      "comparison_engine_rationale_643",
+      "comparison_engine_rationale_666",
+      "comparison_engine_rationale_687",
+      "comparison_engine_rationale_699",
+      "comparison_engine_rationale_710",
+      "comparison_engine_rationale_719",
+      "comparison_engine_rationale_770",
+      "comparison_engine_write_comparison_excel",
+      "comparison_engine_write_simple_excel"
+    ],
+    "3": [
+      "comparison_engine_build_negative_case_report",
+      "comparison_engine_composite_key_series",
+      "comparison_engine_find_default_key_column",
+      "comparison_engine_load_sheet",
+      "comparison_engine_match_records",
+      "comparison_engine_normalize_header",
+      "comparison_engine_rationale_134",
+      "comparison_engine_rationale_145",
+      "comparison_engine_rationale_195",
+      "comparison_engine_rationale_468",
+      "comparison_engine_rationale_87",
+      "comparison_engine_read_csv_with_fallback_encoding",
+      "comparison_engine_read_table",
+      "comparison_engine_resolve_default_key",
+      "comparison_engine_with_key_column",
+      "dataframe",
+      "series"
+    ],
+    "4": [
+      "app",
+      "app_back_to_upload",
+      "app_download",
+      "app_render_upload_with_prefill",
+      "app_safe_filename_part",
+      "flask",
+      "json",
+      "os",
+      "pandas",
+      "re",
+      "tempfile",
+      "uuid"
+    ],
+    "5": [
+      "app_advance_after_key",
+      "app_advance_after_mapping",
+      "app_confirm_key",
+      "app_confirm_mapping",
+      "app_rationale_130",
+      "app_rationale_145",
+      "app_render_drop_fields",
+      "app_render_select_key",
+      "comparison_engine_common_columns",
+      "comparison_engine_has_default_key",
+      "comparison_engine_rationale_95"
+    ],
+    "6": [
+      "app_back_to_drop",
+      "app_back_to_field_logic",
+      "app_rationale_234",
+      "app_rationale_252",
+      "app_render_field_logic",
+      "app_retreat_to_drop_or_earlier",
+      "app_retreat_to_field_logic_or_earlier",
+      "comparison_engine_apply_column_mapping",
+      "comparison_engine_rationale_179"
+    ],
+    "7": [
+      "app_advance_after_drop",
+      "app_back_to_options",
+      "app_confirm_drop",
+      "app_confirm_field_logic",
+      "app_index",
+      "app_rationale_159",
+      "app_render_options",
+      "route"
+    ],
+    "8": [
+      "app_back_to_key",
+      "app_rationale_215",
+      "app_retreat_to_key_or_earlier"
+    ],
+    "9": [
+      "app_inject_asset_version",
+      "app_inject_asset_version_asset_version",
+      "context_processor"
+    ],
+    "10": [
+      "static_js_engine_animation",
+      "static_js_engine_animation_delay",
+      "static_js_engine_animation_setphase"
+    ]
+  },
+  "cohesion": {
+    "0": 0.10416666666666667,
+    "1": 0.17647058823529413,
+    "2": 0.1323529411764706,
+    "3": 0.16911764705882354,
+    "4": 0.19696969696969696,
+    "5": 0.2,
+    "6": 0.25,
+    "7": 0.32142857142857145,
+    "8": 0.6666666666666666,
+    "9": 0.6666666666666666,
+    "10": 0.6666666666666666
+  },
+  "gods": [
+    {
+      "id": "comparison_engine_normalize_key_column_names",
+      "label": "normalize_key_column_names()",
+      "degree": 14
+    },
+    {
+      "id": "comparison_engine_normalize_namespaced_columns",
+      "label": "normalize_namespaced_columns()",
+      "degree": 14
+    },
+    {
+      "id": "comparison_engine_load_sheet",
+      "label": "load_sheet()",
+      "degree": 14
+    },
+    {
+      "id": "app_retreat_to_key_or_earlier",
+      "label": "_retreat_to_key_or_earlier()",
+      "degree": 11
+    },
+    {
+      "id": "app_retreat_to_mapping_or_earlier",
+      "label": "_retreat_to_mapping_or_earlier()",
+      "degree": 10
+    },
+    {
+      "id": "app_run_compare",
+      "label": "_run_compare()",
+      "degree": 10
+    },
+    {
+      "id": "app_retreat_to_drop_or_earlier",
+      "label": "_retreat_to_drop_or_earlier()",
+      "degree": 10
+    },
+    {
+      "id": "comparison_engine_apply_column_mapping",
+      "label": "apply_column_mapping()",
+      "degree": 10
+    },
+    {
+      "id": "comparison_engine_classify",
+      "label": "_classify()",
+      "degree": 9
+    },
+    {
+      "id": "comparison_engine_diff_columns",
+      "label": "diff_columns()",
+      "degree": 9
+    }
+  ],
+  "surprises": [
+    {
+      "source": "_run_compare()",
+      "target": "build_reports()",
+      "source_files": [
+        "app.py",
+        "comparison_engine.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "_run_compare()",
+      "target": "rows_to_dataframe()",
+      "source_files": [
+        "app.py",
+        "comparison_engine.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "compare()",
+      "target": "load_sheet()",
+      "source_files": [
+        "app.py",
+        "comparison_engine.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "negative_test()",
+      "target": "load_sheet()",
+      "source_files": [
+        "app.py",
+        "comparison_engine.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "_retreat_to_mapping_or_earlier()",
+      "target": "load_sheet()",
+      "source_files": [
+        "app.py",
+        "comparison_engine.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `normalize_namespaced_columns()` connect `Community 1` to `Community 0`, `Community 2`, `Community 3`, `Community 5`, `Community 6`, `Community 7`, `Community 8`?",
+      "why": "High betweenness centrality (0.044) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `normalize_key_column_names()` connect `Community 1` to `Community 0`, `Community 2`, `Community 3`, `Community 5`, `Community 6`, `Community 7`, `Community 8`?",
+      "why": "High betweenness centrality (0.044) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `load_sheet()` connect `Community 3` to `Community 0`, `Community 1`, `Community 2`, `Community 5`, `Community 6`, `Community 7`, `Community 8`?",
+      "why": "High betweenness centrality (0.041) - this node is a cross-community bridge."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 0` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.10416666666666667 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 2` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.1323529411764706 - nodes in this community are weakly interconnected."
+    }
+  ]
+}

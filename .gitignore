@@ -6,3 +6,12 @@ __pycache__/
 SOAP_sample_Customers.csv
 REST_Sample_Customers.csv
 *.numbers
+
+# Graphify local/rebuildable state. The shared graph, report, analysis, and
+# labels remain trackable on the dedicated Graphify branch.
+graphify-out/manifest.json
+graphify-out/.graphify_root
+graphify-out/cost.json
+graphify-out/cache/
+graphify-out/memory/
+graphify-out/reflections/

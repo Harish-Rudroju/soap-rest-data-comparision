@@ -1,0 +1,9 @@
+# Local environments and caches
+.venv/
+__pycache__/
+*.pyc
+
+# Generated or non-application media
+graphify-out/
+brag-output/
+videos/
